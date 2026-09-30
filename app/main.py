@@ -6,6 +6,7 @@ from aiogram.types import BotCommand
 from sqlalchemy import text
 
 from app.bot.handlers.start import create_router
+from app.bot.handlers.tasks import create_router as create_task_router
 from app.bot.middlewares.database import DatabaseMiddleware
 from app.config.logging import configure_logging
 from app.config.settings import Settings
@@ -23,12 +24,17 @@ async def main() -> None:
         async with engine.connect() as connection:
             await connection.execute(text("SELECT 1 FROM users LIMIT 1"))
         dispatcher = Dispatcher()
-        dispatcher.message.outer_middleware(DatabaseMiddleware(session_factory(engine), settings))
+        middleware = DatabaseMiddleware(session_factory(engine), settings)
+        dispatcher.message.outer_middleware(middleware)
+        dispatcher.callback_query.outer_middleware(middleware)
         dispatcher.include_router(create_router())
+        dispatcher.include_router(create_task_router())
         await bot.set_my_commands(
             [
                 BotCommand(command="start", description="Open Bullet Journal"),
                 BotCommand(command="menu", description="Show main menu"),
+                BotCommand(command="task", description="Manage tasks"),
+                BotCommand(command="cancel", description="Cancel current action"),
             ]
         )
         scheduler.start()

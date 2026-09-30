@@ -1,7 +1,7 @@
 # Architecture and boundaries
 
 `app/bot` handles Telegram routing, keyboards, access control and translations.
-`app/services` owns use cases. Only user registration is implemented today.
+`app/services` owns use cases. User registration and task operations are implemented.
 `app/database` owns SQLAlchemy models, session creation and versioned migrations.
 `app/config` validates deployment settings and configures UTC console logging.
 `app/scheduler` creates an async scheduler with no jobs yet.
@@ -23,7 +23,8 @@ does not retain timezone offsets; normalize retrieved values as UTC. Habit dates
 will use user-local calendar dates once per-user timezone settings are introduced.
 repeat_config is reserved JSON; validate it in the future recurrence service.
 Current/best streak and XP totals are cached values to update transactionally.
-Task completion history needs a separate occurrence/event table in a later migration.
+Task completion history is stored as immutable events. Recurring tasks will need
+dated occurrence records before recurrence is enabled.
 
 No repository abstraction, queue, AI provider or distributed scheduler is needed
 for the initial personal bot. Add these only when a concrete feature requires them.

@@ -15,7 +15,7 @@ from app.bot.keyboards.main_menu import main_menu
 from app.bot.middlewares.database import DatabaseMiddleware
 from app.config.logging import RedactingFormatter
 from app.config.settings import Settings
-from app.database.models import Habit, HabitLog, Project, Task, User, XPHistory
+from app.database.models import Habit, HabitLog, Project, Task, TaskCompletion, User, XPHistory
 from app.services.user_service import register_user
 
 TOKEN = "123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi"
@@ -75,7 +75,7 @@ async def test_relations_and_cascades(sessions):
         assert task.project_id is None
         await session.execute(delete(User).where(User.id == user.id))
     async with sessions() as session:
-        for model in (User, Project, Task, Habit, HabitLog, XPHistory):
+        for model in (User, Project, Task, TaskCompletion, Habit, HabitLog, XPHistory):
             assert await session.scalar(select(func.count()).select_from(model)) == 0
 
 

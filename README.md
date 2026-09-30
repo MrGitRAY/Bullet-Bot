@@ -10,13 +10,14 @@ Repository: https://github.com/MrGitRAY/Bullet-Bot
 ## Current scope
 
 Implemented: validated environment settings, redacted console logging, database
-models and migrations, idempotent user registration, private-chat `/start` and
-`/menu`, Persian/English keyboards, optional personal allowlist, Docker and tests.
+models and migrations, idempotent user registration, private-chat `/start`, `/menu`
+and `/task`, task creation/list/completion with completion history, Persian/English
+keyboards, optional personal allowlist, Docker and tests.
 
-Menu buttons intentionally return a localized “coming soon” response. Task/habit
-CRUD, `/task`, `/habit`, `/stats`, XP awards, charts, reminders and reviews are **not
-implemented**. Scheduler starts without jobs. Service modules reserve locations for
-future work; no AI integration is included.
+Habit/project/statistics/profile/settings buttons intentionally return a localized
+“coming soon” response. Task editing/deletion/recurrence/reminders, `/habit`, `/stats`,
+XP awards, charts and reviews are **not implemented**. Scheduler starts without jobs.
+Service modules reserve locations for future work; no AI integration is included.
 
 ## Windows quick start (PowerShell)
 
@@ -90,8 +91,8 @@ public production rollout. No Telegram token is needed for tests or migrations.
 
 ## Next steps
 
-1. Task CRUD with per-user ownership checks and handler/service/database tests.
-2. Completion history and idempotent XP transactions; recurrence as dated occurrences.
+1. Task editing/deletion, projects and recurrence as dated occurrences.
+2. Idempotent XP transactions tied to task completion.
 3. Habit logging with user timezone, streak calculations and completion rates.
 4. Durable reminder delivery, retry/deduplication, weekly/monthly reviews and charts.
 5. Language/timezone settings, PostgreSQL integration tests and public-use protections.
