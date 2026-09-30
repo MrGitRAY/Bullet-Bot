@@ -1,0 +1,15 @@
+services:
+  bot:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: sqlite+aiosqlite:////app/data/bullet.db
+    volumes:
+      - bullet_data:/app/data
+    restart: unless-stopped
+    init: true
+    stop_grace_period: 30s
+volumes:
+  bullet_data:

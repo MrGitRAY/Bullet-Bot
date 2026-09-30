@@ -1,0 +1,10 @@
+{
+  "welcome": "📒 Bullet Journal\nWelcome! Your journal starts here.",
+  "tasks": "📋 Tasks",
+  "habits": "🌱 Habits",
+  "projects": "📂 Projects",
+  "statistics": "📊 Statistics",
+  "profile": "🏆 Profile",
+  "settings": "⚙ Settings",
+  "coming_soon": "This feature is planned for a future version. Use /start to open the main menu."
+}
