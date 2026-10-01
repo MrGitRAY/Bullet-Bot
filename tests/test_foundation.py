@@ -15,7 +15,8 @@ from app.bot.keyboards.main_menu import main_menu
 from app.bot.middlewares.database import DatabaseMiddleware
 from app.config.logging import RedactingFormatter
 from app.config.settings import Settings
-from app.database.models import Habit, HabitLog, Project, Task, User, XPHistory
+from app.database.models import Habit, HabitLog, Project, Task, TaskCompletion, User, XPHistory
+from app.main import create_bot
 from app.services.user_service import register_user
 
 TOKEN = "123456789:ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghi"
@@ -28,6 +29,34 @@ def test_configuration_and_secrets():
         Settings(_env_file=None, bot_token=TOKEN, database_url="sqlite:///bad.db")
     with pytest.raises(ValueError):
         Settings(_env_file=None, bot_token=TOKEN, timezone="invalid/timezone")
+    settings = Settings(
+        _env_file=None,
+        bot_token=TOKEN,
+        telegram_proxy_url="socks5://user:password@127.0.0.1:1080",
+    )
+    assert "password" not in repr(settings)
+    with pytest.raises(ValueError):
+        Settings(
+            _env_file=None,
+            bot_token=TOKEN,
+            telegram_proxy_url="mtproto://proxy.example:443",
+        )
+    with pytest.raises(ValueError):
+        Settings(
+            _env_file=None,
+            bot_token=TOKEN,
+            telegram_proxy_url="socks5://127.0.0.1",
+        )
+
+
+async def test_bot_uses_configured_proxy():
+    proxy = "socks5://user:password@127.0.0.1:1080"
+    settings = Settings(_env_file=None, bot_token=TOKEN, telegram_proxy_url=proxy)
+    bot = create_bot(settings)
+    try:
+        assert bot.session._proxy == proxy
+    finally:
+        await bot.session.close()
 
 
 def test_locales_and_keyboard():
@@ -75,7 +104,7 @@ async def test_relations_and_cascades(sessions):
         assert task.project_id is None
         await session.execute(delete(User).where(User.id == user.id))
     async with sessions() as session:
-        for model in (User, Project, Task, Habit, HabitLog, XPHistory):
+        for model in (User, Project, Task, TaskCompletion, Habit, HabitLog, XPHistory):
             assert await session.scalar(select(func.count()).select_from(model)) == 0
 
 

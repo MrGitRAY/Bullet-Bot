@@ -1,4 +1,5 @@
 from typing import Literal
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import SecretStr, field_validator
@@ -10,6 +11,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     bot_token: SecretStr
+    telegram_proxy_url: SecretStr | None = None
     database_url: str = "sqlite+aiosqlite:///./data/bullet.db"
     default_language: Literal["fa", "en"] = "fa"
     timezone: str = "Asia/Tehran"
@@ -22,6 +24,18 @@ class Settings(BaseSettings):
         from aiogram.utils.token import validate_token
 
         validate_token(value.get_secret_value())
+        return value
+
+    @field_validator("telegram_proxy_url")
+    @classmethod
+    def validate_proxy(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is None or not value.get_secret_value().strip():
+            return None
+        parsed = urlparse(value.get_secret_value())
+        if parsed.scheme not in {"http", "https", "socks4", "socks5"}:
+            raise ValueError("Proxy must use http, https, socks4, or socks5")
+        if not parsed.hostname or parsed.port is None:
+            raise ValueError("Proxy URL must include host and port")
         return value
 
     @field_validator("database_url")

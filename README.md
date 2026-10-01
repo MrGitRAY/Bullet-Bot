@@ -10,13 +10,15 @@ Repository: https://github.com/MrGitRAY/Bullet-Bot
 ## Current scope
 
 Implemented: validated environment settings, redacted console logging, database
-models and migrations, idempotent user registration, private-chat `/start` and
-`/menu`, Persian/English keyboards, optional personal allowlist, Docker and tests.
+models and migrations, idempotent user registration, private-chat `/start`, `/menu`
+and `/task`, one-time tasks with required deadlines, weekly tasks on selected
+weekdays, per-occurrence completion history, task detail/edit/delete flows,
+Persian/English keyboards, optional personal allowlist, Docker and tests.
 
-Menu buttons intentionally return a localized “coming soon” response. Task/habit
-CRUD, `/task`, `/habit`, `/stats`, XP awards, charts, reminders and reviews are **not
-implemented**. Scheduler starts without jobs. Service modules reserve locations for
-future work; no AI integration is included.
+Habit/project/statistics/profile/settings buttons intentionally return a localized
+“coming soon” response. Task reminders, projects, `/habit`, `/stats`, XP awards,
+charts and reviews are **not implemented**. Scheduler starts without jobs.
+Service modules reserve locations for future work; no AI integration is included.
 
 ## Windows quick start (PowerShell)
 
@@ -51,6 +53,13 @@ Supported settings: `BOT_TOKEN`, `DATABASE_URL`, `DEFAULT_LANGUAGE=fa|en`,
 `TIMEZONE=Asia/Tehran`, `LOG_LEVEL=INFO`, `ALLOWED_USER_IDS=[]` (JSON array).
 Telegram language is used on first registration when supported; otherwise the
 configured default applies. Existing user language is preserved.
+
+If Telegram Bot API access is blocked, set `TELEGRAM_PROXY_URL` to an HTTP(S),
+SOCKS4, or SOCKS5 proxy, for example
+`socks5://username:password@proxy-host:1080`. Telegram Desktop's proxy affects only
+that app; copy its SOCKS5/HTTP connection details into `.env`. MTProto proxies cannot
+carry Bot API HTTP traffic. Keep proxy credentials only in `.env`, never in
+`.env.example` or Git.
 
 ## Docker
 
@@ -90,8 +99,8 @@ public production rollout. No Telegram token is needed for tests or migrations.
 
 ## Next steps
 
-1. Task CRUD with per-user ownership checks and handler/service/database tests.
-2. Completion history and idempotent XP transactions; recurrence as dated occurrences.
+1. Projects, task-to-project assignment and reminders.
+2. Idempotent XP transactions tied to task completion.
 3. Habit logging with user timezone, streak calculations and completion rates.
 4. Durable reminder delivery, retry/deduplication, weekly/monthly reviews and charts.
 5. Language/timezone settings, PostgreSQL integration tests and public-use protections.

@@ -45,6 +45,9 @@ class User(TimestampMixin, Base):
     level: Mapped[int] = mapped_column(default=1)
     projects: Mapped[list["Project"]] = relationship(back_populates="user", passive_deletes=True)
     tasks: Mapped[list["Task"]] = relationship(back_populates="user", passive_deletes=True)
+    task_completions: Mapped[list["TaskCompletion"]] = relationship(
+        back_populates="user", passive_deletes=True
+    )
     habits: Mapped[list["Habit"]] = relationship(back_populates="user", passive_deletes=True)
     xp_history: Mapped[list["XPHistory"]] = relationship(
         back_populates="user", passive_deletes=True
@@ -83,6 +86,23 @@ class Task(TimestampMixin, Base):
     completed: Mapped[bool] = mapped_column(Boolean, default=False)
     user: Mapped[User] = relationship(back_populates="tasks")
     project: Mapped[Project | None] = relationship(back_populates="tasks")
+    completion_history: Mapped[list["TaskCompletion"]] = relationship(
+        back_populates="task", passive_deletes=True
+    )
+
+
+class TaskCompletion(Base):
+    __tablename__ = "task_completions"
+    __table_args__ = (UniqueConstraint("task_id", "occurrence_date"),)
+    id: Mapped[int] = mapped_column(primary_key=True)
+    task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    completed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    occurrence_date: Mapped[date] = mapped_column(Date)
+    task: Mapped[Task] = relationship(back_populates="completion_history")
+    user: Mapped[User] = relationship(back_populates="task_completions")
 
 
 class Habit(TimestampMixin, Base):
