@@ -23,8 +23,10 @@ does not retain timezone offsets; normalize retrieved values as UTC. Habit dates
 will use user-local calendar dates once per-user timezone settings are introduced.
 repeat_config is reserved JSON; validate it in the future recurrence service.
 Current/best streak and XP totals are cached values to update transactionally.
-Task completion history is stored as immutable events. Recurring tasks will need
-dated occurrence records before recurrence is enabled.
+Task completion history is stored as immutable dated events. One-time tasks become
+completed permanently. Weekly tasks remain active and receive at most one completion
+event for each scheduled local date. Weekdays use ISO values 1 (Monday) through 7
+(Sunday); the UI displays them in the natural order for each language.
 
 No repository abstraction, queue, AI provider or distributed scheduler is needed
 for the initial personal bot. Add these only when a concrete feature requires them.

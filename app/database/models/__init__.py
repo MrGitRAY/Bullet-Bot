@@ -93,12 +93,14 @@ class Task(TimestampMixin, Base):
 
 class TaskCompletion(Base):
     __tablename__ = "task_completions"
+    __table_args__ = (UniqueConstraint("task_id", "occurrence_date"),)
     id: Mapped[int] = mapped_column(primary_key=True)
     task_id: Mapped[int] = mapped_column(ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
     completed_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
+    occurrence_date: Mapped[date] = mapped_column(Date)
     task: Mapped[Task] = relationship(back_populates="completion_history")
     user: Mapped[User] = relationship(back_populates="task_completions")
 

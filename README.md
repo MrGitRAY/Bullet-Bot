@@ -11,12 +11,13 @@ Repository: https://github.com/MrGitRAY/Bullet-Bot
 
 Implemented: validated environment settings, redacted console logging, database
 models and migrations, idempotent user registration, private-chat `/start`, `/menu`
-and `/task`, task creation/list/completion with completion history, Persian/English
-keyboards, optional personal allowlist, Docker and tests.
+and `/task`, one-time tasks with required deadlines, weekly tasks on selected
+weekdays, per-occurrence completion history, Persian/English keyboards, optional
+personal allowlist, Docker and tests.
 
 Habit/project/statistics/profile/settings buttons intentionally return a localized
-“coming soon” response. Task editing/deletion/recurrence/reminders, `/habit`, `/stats`,
-XP awards, charts and reviews are **not implemented**. Scheduler starts without jobs.
+“coming soon” response. Task editing/deletion/reminders, `/habit`, `/stats`, XP awards,
+charts and reviews are **not implemented**. Scheduler starts without jobs.
 Service modules reserve locations for future work; no AI integration is included.
 
 ## Windows quick start (PowerShell)
@@ -91,7 +92,7 @@ public production rollout. No Telegram token is needed for tests or migrations.
 
 ## Next steps
 
-1. Task editing/deletion, projects and recurrence as dated occurrences.
+1. Task editing/deletion and projects.
 2. Idempotent XP transactions tied to task completion.
 3. Habit logging with user timezone, streak calculations and completion rates.
 4. Durable reminder delivery, retry/deduplication, weekly/monthly reviews and charts.
