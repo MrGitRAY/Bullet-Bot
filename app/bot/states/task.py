@@ -7,3 +7,9 @@ class CreateTask(StatesGroup):
     priority = State()
     deadline = State()
     weekdays = State()
+
+
+class EditTask(StatesGroup):
+    title = State()
+    deadline = State()
+    weekdays = State()

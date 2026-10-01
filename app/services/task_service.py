@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Literal
 
-from sqlalchemy import Select, select, update
+from sqlalchemy import Select, delete, select, update
 from sqlalchemy.dialects.postgresql import insert as postgres_insert
 from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,6 +17,10 @@ class TaskNotFoundError(Exception):
 
 
 class TaskNotScheduledError(Exception):
+    pass
+
+
+class TaskCompletedError(Exception):
     pass
 
 
@@ -103,6 +107,95 @@ async def list_open_tasks(
     return visible[:limit]
 
 
+async def list_tasks(session: AsyncSession, telegram_id: int, *, limit: int = 50) -> list[Task]:
+    if not 1 <= limit <= 100:
+        raise ValueError("Task list limit must be between 1 and 100")
+    user_id = await _user_id(session, telegram_id)
+    statement = (
+        select(Task)
+        .where(Task.user_id == user_id)
+        .order_by(Task.completed, Task.repeat_type, Task.deadline.is_(None), Task.deadline, Task.id)
+        .limit(limit)
+    )
+    return list(await session.scalars(statement))
+
+
+async def get_task(session: AsyncSession, telegram_id: int, task_id: int) -> Task:
+    user_id = await _user_id(session, telegram_id)
+    task = await session.scalar(select(Task).where(Task.id == task_id, Task.user_id == user_id))
+    if task is None:
+        raise TaskNotFoundError
+    return task
+
+
+async def update_task_title(
+    session: AsyncSession, telegram_id: int, task_id: int, title: str
+) -> Task:
+    task = await get_task(session, telegram_id, task_id)
+    _ensure_editable(task)
+    title = title.strip()
+    if not 1 <= len(title) <= 500:
+        raise ValueError("Task title must contain 1-500 characters")
+    task.title = title
+    await session.flush()
+    return task
+
+
+async def update_task_priority(
+    session: AsyncSession,
+    telegram_id: int,
+    task_id: int,
+    priority: TaskPriority,
+) -> Task:
+    task = await get_task(session, telegram_id, task_id)
+    _ensure_editable(task)
+    if priority not in {"low", "medium", "high"}:
+        raise ValueError("Unknown task priority")
+    task.priority = priority
+    await session.flush()
+    return task
+
+
+async def update_task_schedule(
+    session: AsyncSession,
+    telegram_id: int,
+    task_id: int,
+    *,
+    deadline: datetime | None = None,
+    weekdays: list[int] | None = None,
+) -> Task:
+    task = await get_task(session, telegram_id, task_id)
+    _ensure_editable(task)
+    if task.repeat_type == "none":
+        if deadline is None or deadline.tzinfo is None:
+            raise ValueError("One-time tasks require a timezone-aware deadline")
+        if weekdays is not None:
+            raise ValueError("One-time tasks cannot use weekly weekdays")
+        task.deadline = deadline
+    elif task.repeat_type == "weekdays":
+        if deadline is not None:
+            raise ValueError("Weekly tasks cannot have a one-time deadline")
+        normalized_days = sorted(set(weekdays or []))
+        if not normalized_days or any(day not in range(1, 8) for day in normalized_days):
+            raise ValueError("Weekly tasks require weekdays between 1 and 7")
+        task.repeat_config = {"weekdays": normalized_days}
+    else:
+        raise ValueError("Unknown task recurrence")
+    await session.flush()
+    return task
+
+
+async def delete_task(session: AsyncSession, telegram_id: int, task_id: int) -> None:
+    user_id = await _user_id(session, telegram_id)
+    deleted_id = (
+        await session.execute(
+            delete(Task).where(Task.id == task_id, Task.user_id == user_id).returning(Task.id)
+        )
+    ).scalar_one_or_none()
+    if deleted_id is None:
+        raise TaskNotFoundError
+
+
 async def complete_task(
     session: AsyncSession,
     telegram_id: int,
@@ -154,6 +247,11 @@ def _weekdays(task: Task) -> set[int]:
     if not isinstance(values, list):
         return set()
     return {value for value in values if isinstance(value, int) and value in range(1, 8)}
+
+
+def _ensure_editable(task: Task) -> None:
+    if task.completed:
+        raise TaskCompletedError
 
 
 async def _user_id(session: AsyncSession, telegram_id: int) -> int:

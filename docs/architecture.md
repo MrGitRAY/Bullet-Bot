@@ -27,6 +27,9 @@ Task completion history is stored as immutable dated events. One-time tasks beco
 completed permanently. Weekly tasks remain active and receive at most one completion
 event for each scheduled local date. Weekdays use ISO values 1 (Monday) through 7
 (Sunday); the UI displays them in the natural order for each language.
+Task mutations always scope the record to the authenticated Telegram user. Completed
+one-time tasks are immutable, while deletion removes their completion history through
+database cascades. A task's one-time/weekly kind is intentionally immutable.
 
 No repository abstraction, queue, AI provider or distributed scheduler is needed
 for the initial personal bot. Add these only when a concrete feature requires them.

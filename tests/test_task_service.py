@@ -12,11 +12,18 @@ from app.bot.middlewares.database import DatabaseMiddleware
 from app.config.settings import Settings
 from app.database.models import Task, TaskCompletion
 from app.services.task_service import (
+    TaskCompletedError,
     TaskNotFoundError,
     TaskNotScheduledError,
     complete_task,
     create_task,
+    delete_task,
+    get_task,
     list_open_tasks,
+    list_tasks,
+    update_task_priority,
+    update_task_schedule,
+    update_task_title,
 )
 from app.services.user_service import register_user
 
@@ -89,6 +96,66 @@ async def test_task_operations_are_scoped_to_owner(sessions):
         assert await list_open_tasks(session, 2, occurrence_date=MONDAY) == []
         with pytest.raises(TaskNotFoundError):
             await complete_task(session, 2, task.id, occurrence_date=MONDAY)
+
+
+async def test_task_management_updates_and_deletes_with_history(sessions):
+    async with sessions.begin() as session:
+        await register_user(session, 1, "owner", "en")
+        await register_user(session, 2, "other", "en")
+        one_time = await create_task(
+            session,
+            1,
+            "Original",
+            "low",
+            kind="one_time",
+            deadline=datetime.now(UTC),
+        )
+        weekly = await create_task(session, 1, "Weekly", "medium", kind="weekly", weekdays=[1])
+
+        await update_task_title(session, 1, one_time.id, "Renamed")
+        await update_task_priority(session, 1, one_time.id, "high")
+        new_deadline = datetime.now(UTC) + timedelta(days=3)
+        await update_task_schedule(session, 1, one_time.id, deadline=new_deadline)
+        await update_task_schedule(session, 1, weekly.id, weekdays=[3, 5, 3])
+
+        managed = await list_tasks(session, 1)
+        assert {task.id for task in managed} == {one_time.id, weekly.id}
+        assert (await get_task(session, 1, one_time.id)).title == "Renamed"
+        assert one_time.priority == "high"
+        assert weekly.repeat_config == {"weekdays": [3, 5]}
+
+        with pytest.raises(TaskNotFoundError):
+            await update_task_title(session, 2, one_time.id, "Stolen")
+        with pytest.raises(TaskNotFoundError):
+            await delete_task(session, 2, weekly.id)
+
+        await update_task_schedule(session, 1, weekly.id, weekdays=[1, 3])
+        assert await complete_task(session, 1, weekly.id, occurrence_date=MONDAY) is True
+        await delete_task(session, 1, weekly.id)
+
+    async with sessions() as session:
+        assert await session.get(Task, weekly.id) is None
+        assert await session.scalar(select(func.count(TaskCompletion.id))) == 0
+
+
+async def test_completed_one_time_task_cannot_be_edited(sessions):
+    async with sessions.begin() as session:
+        await register_user(session, 1, None, "en")
+        task = await create_task(
+            session,
+            1,
+            "Finish me",
+            "medium",
+            kind="one_time",
+            deadline=datetime.now(UTC),
+        )
+        await complete_task(session, 1, task.id, occurrence_date=MONDAY)
+        with pytest.raises(TaskCompletedError):
+            await update_task_title(session, 1, task.id, "Changed")
+        with pytest.raises(TaskCompletedError):
+            await update_task_priority(session, 1, task.id, "high")
+        with pytest.raises(TaskCompletedError):
+            await update_task_schedule(session, 1, task.id, deadline=datetime.now(UTC))
 
 
 @pytest.mark.parametrize(
