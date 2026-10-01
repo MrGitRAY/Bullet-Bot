@@ -10,4 +10,10 @@ data/
 .coverage
 htmlcov/
 
+worker/node_modules/
+worker/.wrangler/
+worker/.wrangler-config/
+worker/.dev.vars
+worker/worker-configuration.d.ts
+
 .venv-win/

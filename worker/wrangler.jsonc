@@ -1,0 +1,25 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "bullet-bot",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "vars": {
+    "TIMEZONE": "Asia/Tehran",
+    "ALLOWED_USER_IDS": "[]",
+    "BOT_TOKEN": "",
+    "WEBHOOK_SECRET": ""
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "bullet-bot",
+      "database_id": "replace-after-d1-create",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

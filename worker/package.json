@@ -1,0 +1,15 @@
+{
+  "name": "bullet-bot-worker",
+  "private": true,
+  "scripts": {
+    "check": "wrangler types && tsc --noEmit",
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:local": "wrangler d1 migrations apply bullet-bot --local",
+    "db:remote": "wrangler d1 migrations apply bullet-bot --remote"
+  },
+  "devDependencies": {
+    "typescript": "latest",
+    "wrangler": "latest"
+  }
+}
