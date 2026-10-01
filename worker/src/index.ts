@@ -379,7 +379,7 @@ function isAllowed(telegramId: number, configured: string): boolean {
   }
 }
 
-export function normalizeDigits(value: string): string {
+function normalizeDigits(value: string): string {
   const persian = "۰۱۲۳۴۵۶۷۸۹";
   const arabic = "٠١٢٣٤٥٦٧٨٩";
   return [...value].map((char) => {
@@ -390,7 +390,7 @@ export function normalizeDigits(value: string): string {
   }).join("");
 }
 
-export function parseLocalDeadline(value: string): string | null {
+function parseLocalDeadline(value: string): string | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})$/.exec(value);
   if (!match) return null;
   const [, year, month, day, hour, minute] = match.map(Number);
@@ -446,3 +446,4 @@ async function secretsEqual(left: string, right: string): Promise<boolean> {
   }
   return difference === 0 && left.length === right.length;
 }
+
