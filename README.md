@@ -54,6 +54,13 @@ Supported settings: `BOT_TOKEN`, `DATABASE_URL`, `DEFAULT_LANGUAGE=fa|en`,
 Telegram language is used on first registration when supported; otherwise the
 configured default applies. Existing user language is preserved.
 
+If Telegram Bot API access is blocked, set `TELEGRAM_PROXY_URL` to an HTTP(S),
+SOCKS4, or SOCKS5 proxy, for example
+`socks5://username:password@proxy-host:1080`. Telegram Desktop's proxy affects only
+that app; copy its SOCKS5/HTTP connection details into `.env`. MTProto proxies cannot
+carry Bot API HTTP traffic. Keep proxy credentials only in `.env`, never in
+`.env.example` or Git.
+
 ## Docker
 
 Install Docker Desktop with Linux containers. Create `.env` as above, then:

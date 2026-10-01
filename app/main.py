@@ -2,6 +2,7 @@ import asyncio
 import logging
 
 from aiogram import Bot, Dispatcher
+from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.types import BotCommand
 from sqlalchemy import text
 
@@ -14,11 +15,23 @@ from app.database.session import create_engine, session_factory
 from app.scheduler.jobs import create_scheduler
 
 
+def create_bot(settings: Settings) -> Bot:
+    proxy = (
+        settings.telegram_proxy_url.get_secret_value()
+        if settings.telegram_proxy_url is not None
+        else None
+    )
+    return Bot(
+        token=settings.bot_token.get_secret_value(),
+        session=AiohttpSession(proxy=proxy),
+    )
+
+
 async def main() -> None:
     settings = Settings()
     configure_logging(settings.log_level)
     engine = create_engine(settings.database_url)
-    bot = Bot(token=settings.bot_token.get_secret_value())
+    bot = create_bot(settings)
     scheduler = create_scheduler(settings.timezone)
     try:
         async with engine.connect() as connection:

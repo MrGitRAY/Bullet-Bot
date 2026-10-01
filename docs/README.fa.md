@@ -33,6 +33,19 @@ Copy-Item .env.example .env
 در این فضای کاری، محیط آمادهٔ بررسی `.venv-win` است؛ برای اجرای مستقیم همین نسخه
 می‌توانید در دستورها `.venv` را با `.venv-win` جایگزین کنید.
 
+اگر اتصال مستقیم به Telegram Bot API تایم‌اوت می‌شود، پراکسی SOCKS5 یا HTTP را در
+فایل خصوصی `.env` قرار دهید:
+
+```env
+TELEGRAM_PROXY_URL=socks5://username:password@proxy-host:1080
+```
+
+اگر نام کاربری و رمز ندارد از `socks5://proxy-host:1080` استفاده کنید. پراکسی تنظیم‌شده
+در Telegram Desktop فقط همان برنامه را پوشش می‌دهد؛ باید مشخصات server و port آن را
+از تنظیمات Telegram بردارید و در `.env` بگذارید. پراکسی MTProto برای Bot API قابل
+استفاده نیست و در آن حالت باید یک پراکسی SOCKS5 یا HTTP تهیه کنید. اطلاعات پراکسی را
+داخل `.env.example` یا Git قرار ندهید.
+
 ## Docker
 
 پس از نصب Docker Desktop و ساخت `.env`:
