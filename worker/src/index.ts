@@ -33,6 +33,7 @@ const MENU = {
   keyboard: [
     [{ text: "➕ تسک جدید" }, { text: "📋 تسک‌های امروز" }],
     [{ text: "🗂 همه تسک‌ها" }],
+    [{ text: "📊 آمار" }, { text: "راهنما" }],
   ],
   resize_keyboard: true,
 } satisfies ReplyMarkup;
@@ -101,6 +102,16 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
     await sendMessage(env, message.chat.id, "به Bullet Journal خوش آمدی. از منوی زیر شروع کن:", MENU);
     return;
   }
+  if (["/help", "راهنما"].includes(text)) {
+    await sendMessage(env, message.chat.id,
+      "راهنمای Bullet Bot:\n\n" +
+      "➕ تسک جدید یا /task — ساخت تسک یک‌باره یا هفتگی\n" +
+      "📋 تسک‌های امروز یا /today — تسک‌های قابل انجام امروز\n" +
+      "🗂 همه تسک‌ها یا /tasks — همه تسک‌های باز\n" +
+      "📊 آمار یا /stats — خلاصه وضعیت تسک‌ها\n" +
+      "/cancel — لغو عملیات جاری", MENU);
+    return;
+  }
   if (text === "/cancel") {
     await clearSession(env.DB, userId);
     await sendMessage(env, message.chat.id, "عملیات لغو شد.", MENU);
@@ -110,12 +121,16 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
     await showTaskType(env, message.chat.id);
     return;
   }
-  if (text === "📋 تسک‌های امروز") {
+  if (["📋 تسک‌های امروز", "/today"].includes(text)) {
     await showTasks(env, message.chat.id, userId, true);
     return;
   }
-  if (text === "🗂 همه تسک‌ها") {
+  if (["🗂 همه تسک‌ها", "/tasks"].includes(text)) {
     await showTasks(env, message.chat.id, userId, false);
+    return;
+  }
+  if (["📊 آمار", "/stats"].includes(text)) {
+    await showStats(env, message.chat.id, userId);
     return;
   }
 
@@ -275,6 +290,33 @@ async function showTasks(env: Env, chatId: number, userId: number, todayOnly: bo
       },
     );
   }
+}
+
+async function showStats(env: Env, chatId: number, userId: number): Promise<void> {
+  const row = await env.DB.prepare(
+    `SELECT
+       COUNT(*) AS total,
+       COALESCE(SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END), 0) AS completed,
+       COALESCE(SUM(CASE WHEN kind = 'weekly' AND completed = 0 THEN 1 ELSE 0 END), 0) AS weekly,
+       COALESCE(SUM(CASE WHEN kind = 'one_time' AND completed = 0 THEN 1 ELSE 0 END), 0) AS one_time
+     FROM tasks WHERE user_id = ?`,
+  ).bind(userId).first<{ total: number; completed: number; weekly: number; one_time: number }>();
+  if (!row || row.total === 0) {
+    await sendMessage(env, chatId, "هنوز تسکی ثبت نکرده‌ای. از «➕ تسک جدید» شروع کن.");
+    return;
+  }
+  const today = tehranDate();
+  const doneToday = await env.DB.prepare(
+    "SELECT COUNT(*) AS count FROM task_completions WHERE user_id = ? AND occurrence_date = ?",
+  ).bind(userId, today).first<{ count: number }>();
+  await sendMessage(env, chatId,
+    `📊 آمار تسک‌ها\n\n` +
+    `کل تسک‌ها: ${row.total}\n` +
+    `تکمیل‌شده: ${row.completed}\n` +
+    `یک‌باره باز: ${row.one_time}\n` +
+    `تکرارشونده: ${row.weekly}\n` +
+    `تکرارشونده انجام‌شده امروز: ${doneToday?.count ?? 0}`,
+    MENU);
 }
 
 function weekdayKeyboard(selected: number[]): ReplyMarkup {
@@ -446,4 +488,3 @@ async function secretsEqual(left: string, right: string): Promise<boolean> {
   }
   return difference === 0 && left.length === right.length;
 }
-
