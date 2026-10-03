@@ -10,6 +10,7 @@ type SessionData = {
   priority?: "low" | "medium" | "high";
   weekdays?: number[];
   habitTitle?: string;
+  deadlineDate?: string;
 };
 
 type TaskRow = {
@@ -183,11 +184,19 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
     return;
   }
   if (session.state === "await_deadline") {
-    const deadline = parseLocalDeadline(text);
+    const deadline = parseLocalDeadline(data.deadlineDate ? `${data.deadlineDate} ${text}` : text);
     if (!deadline) {
       await sendMessage(env, message.chat.id, "فرمت معتبر نیست. نمونه: 2026-10-15 18:30");
       return;
     }
+    await createTask(env.DB, userId, data, deadline);
+    await clearSession(env.DB, userId);
+    await sendMessage(env, message.chat.id, "✅ تسک یک‌باره ذخیره شد.", MENU);
+    return;
+  }
+  if (session.state === "await_deadline_time") {
+    const deadline = parseLocalDeadline(`${data.deadlineDate ?? ""} ${text}`);
+    if (!deadline) { await sendMessage(env, message.chat.id, "ساعت معتبر نیست. نمونه: 18:30"); return; }
     await createTask(env.DB, userId, data, deadline);
     await clearSession(env.DB, userId);
     await sendMessage(env, message.chat.id, "✅ تسک یک‌باره ذخیره شد.", MENU);
@@ -224,13 +233,23 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     const sessionData = JSON.parse(session.data) as SessionData;
     sessionData.priority = priority;
     if (sessionData.kind === "one_time") {
-      await setSession(env.DB, userId, "await_deadline", sessionData);
-      await sendMessage(env, chatId, "ددلاین را با این فرمت بفرست:\n2026-10-15 18:30");
+      await setSession(env.DB, userId, "await_deadline_date", sessionData);
+      await sendMessage(env, chatId, "روز ددلاین را انتخاب کن:", deadlineKeyboard());
     } else {
       sessionData.weekdays = [];
       await setSession(env.DB, userId, "await_weekdays", sessionData);
       await sendMessage(env, chatId, "روزهای تکرار را انتخاب کن:", weekdayKeyboard([]));
     }
+    return;
+  }
+  if (data.startsWith("new:deadline:")) {
+    const date = data.slice("new:deadline:".length);
+    const session = await getSession(env.DB, userId);
+    if (!session || session.state !== "await_deadline_date") return;
+    const sessionData = JSON.parse(session.data) as SessionData;
+    sessionData.deadlineDate = date;
+    await setSession(env.DB, userId, "await_deadline_time", sessionData);
+    await sendMessage(env, chatId, `ساعت ددلاین ${date} را بفرست (مثلاً 18:30):`);
     return;
   }
   if (data.startsWith("new:day:")) {
@@ -290,6 +309,12 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     await env.DB.prepare("INSERT INTO habit_completions (habit_id, user_id, occurrence_date) SELECT id, user_id, ? FROM habits WHERE id = ? AND user_id = ? AND active = 1 ON CONFLICT(habit_id, occurrence_date) DO NOTHING")
       .bind(tehranDate(), habitId, userId).run();
     await sendMessage(env, chatId, "✅ عادت امروز ثبت شد.");
+    return;
+  }
+  if (data.startsWith("habit:skip:")) {
+    const habitId = Number(data.split(":")[2]);
+    await env.DB.prepare("INSERT INTO habit_skips (habit_id, user_id, occurrence_date) SELECT id, user_id, ? FROM habits WHERE id = ? AND user_id = ? AND active = 1 ON CONFLICT(habit_id, occurrence_date) DO NOTHING").bind(tehranDate(), habitId, userId).run();
+    await sendMessage(env, chatId, "⏭️ عادت امروز انجام‌نشده ثبت شد.");
     return;
   }
   if (data.startsWith("task:complete:")) {
@@ -438,9 +463,30 @@ async function showHabits(env: Env, chatId: number, userId: number): Promise<voi
     const scheduled = days.includes(weekday);
     const done = scheduled ? await env.DB.prepare("SELECT 1 FROM habit_completions WHERE habit_id = ? AND occurrence_date = ?")
       .bind(habit.id, tehranDate()).first() : null;
-    await sendMessage(env, chatId, `${done ? "✅" : scheduled ? "⬜" : "▫️"} ${escapeHtml(habit.title)}\nروزها: ${formatWeekdays(days)}`,
-      scheduled && !done ? { inline_keyboard: [[{ text: "ثبت انجام امروز", callback_data: `habit:complete:${habit.id}` }]] } : undefined);
+    const streak = await habitStreak(env.DB, habit.id, tehranDate());
+    await sendMessage(env, chatId, `${done ? "✅" : scheduled ? "⬜" : "▫️"} ${escapeHtml(habit.title)}\n🔥 streak فعلی: ${streak} روز`,
+      scheduled && !done ? { inline_keyboard: [[{ text: "✅ انجام شد", callback_data: `habit:complete:${habit.id}` }, { text: "⏭️ انجام نشد", callback_data: `habit:skip:${habit.id}` }]] } : undefined);
   }
+}
+
+function deadlineKeyboard(): ReplyMarkup {
+  const rows: InlineButton[][] = [];
+  const now = new Date();
+  for (let i = 0; i < 7; i += 1) {
+    const date = new Date(now.getTime() + i * 86400000);
+    const value = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tehran", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
+    rows.push([{ text: i === 0 ? `امروز (${value})` : value, callback_data: `new:deadline:${value}` }]);
+  }
+  return { inline_keyboard: rows };
+}
+
+async function habitStreak(db: D1Database, habitId: number, today: string): Promise<number> {
+  const rows = await db.prepare("SELECT occurrence_date FROM habit_completions WHERE habit_id = ? ORDER BY occurrence_date DESC LIMIT 365").bind(habitId).all<{ occurrence_date: string }>();
+  let streak = 0;
+  let cursor = new Date(`${today}T00:00:00Z`);
+  const dates = new Set(rows.results.map((row) => row.occurrence_date));
+  while (dates.has(cursor.toISOString().slice(0, 10))) { streak += 1; cursor = new Date(cursor.getTime() - 86400000); }
+  return streak;
 }
 
 async function showWeeklyPlan(env: Env, chatId: number, userId: number): Promise<void> {
