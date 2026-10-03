@@ -42,6 +42,11 @@ const MENU = {
   resize_keyboard: true,
 } satisfies ReplyMarkup;
 
+const MENU_EN: ReplyMarkup = {
+  keyboard: [[{ text: "➕ New task" }, { text: "📋 Today's tasks" }], [{ text: "🗂 All tasks" }], [{ text: "📊 Statistics" }, { text: "✅ New habit" }], [{ text: "✅ Habits" }, { text: "📅 Weekly plan" }], [{ text: "🌐 English" }]],
+  resize_keyboard: true,
+};
+
 const PRIORITIES: Record<string, string> = {
   low: "🟢 کم",
   medium: "🟡 متوسط",
@@ -99,11 +104,12 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
     return;
   }
   const userId = await ensureUser(env.DB, from);
+  const language = await getLanguage(env.DB, userId);
   const text = normalizeDigits(message.text ?? "").trim();
 
   if (["/start", "/menu"].includes(text)) {
     await clearSession(env.DB, userId);
-    await sendMessage(env, message.chat.id, "به Bullet Journal خوش آمدی. از منوی زیر شروع کن:", MENU);
+    await sendMessage(env, message.chat.id, language === "en" ? "Welcome to Bullet Journal. Choose an option:" : "به Bullet Journal خوش آمدی. از منوی زیر شروع کن:", language === "en" ? MENU_EN : MENU);
     return;
   }
   if (["/help", "راهنما"].includes(text)) {
@@ -121,31 +127,35 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
     await sendMessage(env, message.chat.id, "عملیات لغو شد.", MENU);
     return;
   }
+  if (text === "🌐 زبان فارسی" || text === "🌐 English") {
+    await sendMessage(env, message.chat.id, "زبان / Language:", { inline_keyboard: [[{ text: "English", callback_data: "lang:en" }, { text: "فارسی", callback_data: "lang:fa" }]] });
+    return;
+  }
   if (text === "/task" || text === "➕ تسک جدید") {
     await showTaskType(env, message.chat.id);
     return;
   }
-  if (["📋 تسک‌های امروز", "/today"].includes(text)) {
+  if (["📋 تسک‌های امروز", "📋 Today's tasks", "/today"].includes(text)) {
     await showTasks(env, message.chat.id, userId, true);
     return;
   }
-  if (["🗂 همه تسک‌ها", "/tasks"].includes(text)) {
+  if (["🗂 همه تسک‌ها", "🗂 All tasks", "/tasks"].includes(text)) {
     await showTasks(env, message.chat.id, userId, false);
     return;
   }
-  if (["📊 آمار", "/stats"].includes(text)) {
+  if (["📊 آمار", "📊 Statistics", "/stats"].includes(text)) {
     await showStats(env, message.chat.id, userId);
     return;
   }
-  if (["✅ عادت جدید", "/habit"].includes(text)) {
+  if (["✅ عادت جدید", "✅ New habit", "/habit"].includes(text)) {
     await startHabitCreation(env, message.chat.id, userId);
     return;
   }
-  if (["✅ عادت‌ها", "/habits"].includes(text)) {
+  if (["✅ عادت‌ها", "✅ Habits", "/habits"].includes(text)) {
     await showHabits(env, message.chat.id, userId);
     return;
   }
-  if (["📅 برنامه هفتگی", "/week"].includes(text)) {
+  if (["📅 برنامه هفتگی", "📅 Weekly plan", "/week"].includes(text)) {
     await showWeeklyPlan(env, message.chat.id, userId);
     return;
   }
@@ -214,6 +224,13 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
   }
   const userId = await ensureUser(env.DB, query.from);
   await answerCallback(env, query.id);
+
+  if (data.startsWith("lang:")) {
+    const language = data.slice(5) === "en" ? "en" : "fa";
+    await env.DB.prepare("UPDATE users SET language = ? WHERE id = ?").bind(language, userId).run();
+    await sendMessage(env, chatId, language === "en" ? "✅ Language changed to English." : "✅ زبان به فارسی تغییر کرد.", language === "en" ? MENU_EN : MENU);
+    return;
+  }
 
   if (data === "new:one_time" || data === "new:weekly") {
     const kind = data === "new:one_time" ? "one_time" : "weekly";
@@ -511,6 +528,11 @@ async function ensureUser(db: D1Database, user: TelegramUser): Promise<number> {
   const row = await db.prepare("SELECT id FROM users WHERE telegram_id = ?").bind(user.id).first<{ id: number }>();
   if (!row) throw new Error("Failed to load user");
   return row.id;
+}
+
+async function getLanguage(db: D1Database, userId: number): Promise<"fa" | "en"> {
+  const row = await db.prepare("SELECT language FROM users WHERE id = ?").bind(userId).first<{ language: string }>();
+  return row?.language === "en" ? "en" : "fa";
 }
 
 async function createTask(db: D1Database, userId: number, data: SessionData, deadline: string | null): Promise<void> {
