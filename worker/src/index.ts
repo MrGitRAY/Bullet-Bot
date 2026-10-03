@@ -113,13 +113,10 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
     return;
   }
   if (["/help", "راهنما"].includes(text)) {
-    await sendMessage(env, message.chat.id,
-      "راهنمای Bullet Bot:\n\n" +
-      "➕ تسک جدید یا /task — ساخت تسک یک‌باره یا هفتگی\n" +
-      "📋 تسک‌های امروز یا /today — تسک‌های قابل انجام امروز\n" +
-      "🗂 همه تسک‌ها یا /tasks — همه تسک‌های باز\n" +
-      "📊 آمار یا /stats — خلاصه وضعیت تسک‌ها\n" +
-      "/cancel — لغو عملیات جاری", MENU);
+    const help = language === "en"
+      ? "Bullet Bot help:\n\n➕ New task or /task — create one-time or weekly tasks\n📋 Today's tasks or /today — tasks for today\n🗂 All tasks or /tasks — all open tasks\n📊 Statistics or /stats — progress summary\n✅ New habit or /habit — create a daily habit\n✅ Habits or /habits — habits and streaks\n📅 Weekly plan or /week — weekly table\n/cancel — cancel current operation"
+      : "راهنمای Bullet Bot:\n\n➕ تسک جدید یا /task — ساخت تسک یک‌باره یا هفتگی\n📋 تسک‌های امروز یا /today — تسک‌های امروز\n🗂 همه تسک‌ها یا /tasks — همه تسک‌های باز\n📊 آمار یا /stats — خلاصه وضعیت\n✅ عادت جدید یا /habit — ساخت عادت روزانه\n✅ عادت‌ها یا /habits — عادت‌ها و streak\n📅 برنامه هفتگی یا /week — جدول هفتگی\n/cancel — لغو عملیات جاری";
+    await sendMessage(env, message.chat.id, help, language === "en" ? MENU_EN : MENU);
     return;
   }
   if (text === "/cancel") {
@@ -131,8 +128,8 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
     await sendMessage(env, message.chat.id, "زبان / Language:", { inline_keyboard: [[{ text: "English", callback_data: "lang:en" }, { text: "فارسی", callback_data: "lang:fa" }]] });
     return;
   }
-  if (text === "/task" || text === "➕ تسک جدید") {
-    await showTaskType(env, message.chat.id);
+  if (["/task", "➕ تسک جدید", "➕ New task"].includes(text)) {
+    await showTaskType(env, message.chat.id, userId);
     return;
   }
   if (["📋 تسک‌های امروز", "📋 Today's tasks", "/today"].includes(text)) {
@@ -355,11 +352,12 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
   }
 }
 
-async function showTaskType(env: Env, chatId: number): Promise<void> {
-  await sendMessage(env, chatId, "نوع تسک را انتخاب کن:", {
+async function showTaskType(env: Env, chatId: number, userId: number): Promise<void> {
+  const en = (await getLanguage(env.DB, userId)) === "en";
+  await sendMessage(env, chatId, en ? "Choose task type:" : "نوع تسک را انتخاب کن:", {
     inline_keyboard: [
-      [{ text: "⏰ یک‌باره با ددلاین", callback_data: "new:one_time" }],
-      [{ text: "🔁 تکرارشونده هفتگی", callback_data: "new:weekly" }],
+      [{ text: en ? "⏰ One-time with deadline" : "⏰ یک‌باره با ددلاین", callback_data: "new:one_time" }],
+      [{ text: en ? "🔁 Weekly recurring" : "🔁 تکرارشونده هفتگی", callback_data: "new:weekly" }],
     ],
   });
 }
