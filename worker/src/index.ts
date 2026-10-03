@@ -110,7 +110,18 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
 
   if (["/start", "/menu"].includes(text)) {
     await clearSession(env.DB, userId);
+    const profile = await env.DB.prepare("SELECT display_name FROM users WHERE id = ?").bind(userId).first<{ display_name: string | null }>();
+    if (!profile?.display_name) {
+      await setSession(env.DB, userId, "await_display_name", {});
+      await sendMessage(env, message.chat.id, language === "en" ? "Welcome! What name should I use for you?" : "خوش آمدی! دوست داری با چه نامی صدایت کنم؟");
+      return;
+    }
     await sendMessage(env, message.chat.id, language === "en" ? "Welcome to Bullet Journal. Choose an option:" : "به Bullet Journal خوش آمدی. از منوی زیر شروع کن:", language === "en" ? MENU_EN : MENU);
+    return;
+  }
+  if (text === "/name") {
+    await setSession(env.DB, userId, "await_display_name", {});
+    await sendMessage(env, message.chat.id, language === "en" ? "Send your new display name:" : "نام نمایشی جدیدت را بفرست:");
     return;
   }
   if (["/help", "راهنما", "Help"].includes(text)) {
@@ -168,6 +179,16 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
     return;
   }
   const data = JSON.parse(session.data) as SessionData;
+  if (session.state === "await_display_name") {
+    if (text.length < 1 || text.length > 80) {
+      await sendMessage(env, message.chat.id, language === "en" ? "Name must be between 1 and 80 characters." : "نام باید بین ۱ تا ۸۰ نویسه باشد.");
+      return;
+    }
+    await env.DB.prepare("UPDATE users SET display_name = ? WHERE id = ?").bind(text, userId).run();
+    await clearSession(env.DB, userId);
+    await sendMessage(env, message.chat.id, language === "en" ? `✅ Nice to meet you, ${escapeHtml(text)}.` : `✅ خوشحالم که با نام ${escapeHtml(text)} می‌شناسمت.`, language === "en" ? MENU_EN : MENU);
+    return;
+  }
   if (session.state === "await_title") {
     if (text.length < 1 || text.length > 500) {
       await sendMessage(env, message.chat.id, (await getLanguage(env.DB, userId)) === "en" ? "Title must be between 1 and 500 characters." : "عنوان باید بین ۱ تا ۵۰۰ نویسه باشد.");
@@ -573,8 +594,8 @@ async function completeTask(db: D1Database, userId: number, taskId: number, occu
 
 async function showLeaderboard(env: Env, chatId: number, userId: number): Promise<void> {
   const en = (await getLanguage(env.DB, userId)) === "en";
-  const rows = await env.DB.prepare("SELECT telegram_id, username, xp FROM users ORDER BY xp DESC, id ASC LIMIT 20").all<{ telegram_id: number; username: string | null; xp: number }>();
-  const lines = rows.results.map((row, index) => `${index + 1}. ${escapeHtml(row.username ? `@${row.username}` : `User ${row.telegram_id}`)} — ${row.xp} XP`);
+  const rows = await env.DB.prepare("SELECT telegram_id, username, display_name, xp FROM users ORDER BY xp DESC, id ASC LIMIT 20").all<{ telegram_id: number; username: string | null; display_name: string | null; xp: number }>();
+  const lines = rows.results.map((row, index) => `${index + 1}. ${escapeHtml(row.display_name || (row.username ? `@${row.username}` : `User ${row.telegram_id}`))} — ${row.xp} XP`);
   await sendMessage(env, chatId, `${en ? "🏆 Leaderboard" : "🏆 لیدربرد XP"}\n\n${lines.join("\n") || (en ? "No users yet." : "هنوز کاربری ثبت نشده است.")}`, en ? MENU_EN : MENU);
 }
 
