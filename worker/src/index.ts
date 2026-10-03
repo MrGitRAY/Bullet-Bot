@@ -38,13 +38,14 @@ const MENU = {
     [{ text: "📋 تسک‌های امروز" }, { text: "✅ عادت‌ها" }],
     [{ text: "🗂 همه تسک‌ها" }, { text: "📅 برنامه هفتگی" }],
     [{ text: "📊 آمار" }, { text: "🏆 لیدربرد" }],
-    [{ text: "🌐 تغییر زبان" }, { text: "راهنما" }],
+    [{ text: "✏️ تغییر نام" }, { text: "🌐 تغییر زبان" }],
+    [{ text: "راهنما" }],
   ],
   resize_keyboard: true,
 } satisfies ReplyMarkup;
 
 const MENU_EN: ReplyMarkup = {
-  keyboard: [[{ text: "➕ New task" }, { text: "✅ New habit" }], [{ text: "📋 Today's tasks" }, { text: "✅ Habits" }], [{ text: "🗂 All tasks" }, { text: "📅 Weekly plan" }], [{ text: "📊 Statistics" }, { text: "🏆 Leaderboard" }], [{ text: "🌐 English" }, { text: "Help" }]],
+  keyboard: [[{ text: "➕ New task" }, { text: "✅ New habit" }], [{ text: "📋 Today's tasks" }, { text: "✅ Habits" }], [{ text: "🗂 All tasks" }, { text: "📅 Weekly plan" }], [{ text: "📊 Statistics" }, { text: "🏆 Leaderboard" }], [{ text: "✏️ Change name" }, { text: "🌐 English" }], [{ text: "Help" }]],
   resize_keyboard: true,
 };
 
@@ -119,7 +120,7 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
     await sendMessage(env, message.chat.id, language === "en" ? "Welcome to Bullet Journal. Choose an option:" : "به Bullet Journal خوش آمدی. از منوی زیر شروع کن:", language === "en" ? MENU_EN : MENU);
     return;
   }
-  if (text === "/name") {
+  if (["/name", "✏️ تغییر نام", "✏️ Change name"].includes(text)) {
     await setSession(env.DB, userId, "await_display_name", {});
     await sendMessage(env, message.chat.id, language === "en" ? "Send your new display name:" : "نام نمایشی جدیدت را بفرست:");
     return;
