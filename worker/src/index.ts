@@ -456,10 +456,7 @@ async function showStats(env: Env, chatId: number, userId: number): Promise<void
        COALESCE(SUM(CASE WHEN kind = 'one_time' AND completed = 0 THEN 1 ELSE 0 END), 0) AS one_time
      FROM tasks WHERE user_id = ?`,
   ).bind(userId).first<{ total: number; completed: number; weekly: number; one_time: number }>();
-  if (!row || row.total === 0) {
-    await sendMessage(env, chatId, en ? "You have not created any tasks yet. Choose New task to begin." : "هنوز تسکی ثبت نکرده‌ای. از «➕ تسک جدید» شروع کن.");
-    return;
-  }
+  if (!row) return;
   const today = tehranDate();
   const doneToday = await env.DB.prepare(
     "SELECT COUNT(*) AS count FROM task_completions WHERE user_id = ? AND occurrence_date = ?",
@@ -467,6 +464,13 @@ async function showStats(env: Env, chatId: number, userId: number): Promise<void
   const skippedToday = await env.DB.prepare(
     "SELECT COUNT(*) AS count FROM task_skips WHERE user_id = ? AND occurrence_date = ?",
   ).bind(userId, today).first<{ count: number }>();
+  const habitStats = await env.DB.prepare(
+    `SELECT
+       (SELECT COUNT(*) FROM habits WHERE user_id = ? AND active = 1) AS total,
+       (SELECT COUNT(*) FROM habit_completions WHERE user_id = ?) AS completed,
+       (SELECT COUNT(*) FROM habit_skips WHERE user_id = ?) AS skipped,
+       (SELECT COUNT(*) FROM habit_completions WHERE user_id = ? AND occurrence_date = ?) AS today_completed`,
+  ).bind(userId, userId, userId, userId, today).first<{ total: number; completed: number; skipped: number; today_completed: number }>();
   const weeklyDone = await env.DB.prepare(
     `SELECT occurrence_date AS date, COUNT(*) AS count
        FROM task_completions WHERE user_id = ? AND occurrence_date >= date('now', '-6 day')
@@ -477,8 +481,8 @@ async function showStats(env: Env, chatId: number, userId: number): Promise<void
     : (en ? "No completions recorded this week." : "برای این هفته هنوز تکمیلی ثبت نشده است.");
   await sendMessage(env, chatId,
     en
-      ? `📊 Task statistics\n\nTotal tasks: ${row.total}\nCompleted: ${row.completed}\nOpen one-time: ${row.one_time}\nRecurring: ${row.weekly}\nRecurring completed today: ${doneToday?.count ?? 0}\nSkipped today: ${skippedToday?.count ?? 0}\n\nCompletion chart (last 7 days):\n${chart}`
-      : `📊 آمار تسک‌ها\n\nکل تسک‌ها: ${row.total}\nتکمیل‌شده: ${row.completed}\nیک‌باره باز: ${row.one_time}\nتکرارشونده: ${row.weekly}\nتکرارشونده انجام‌شده امروز: ${doneToday?.count ?? 0}\nانجام‌نشده امروز: ${skippedToday?.count ?? 0}\n\nنمودار تکمیل ۷ روز اخیر:\n${chart}`,
+      ? `📊 Task statistics\n\nTotal tasks: ${row.total}\nCompleted: ${row.completed}\nOpen one-time: ${row.one_time}\nRecurring: ${row.weekly}\nRecurring completed today: ${doneToday?.count ?? 0}\nSkipped today: ${skippedToday?.count ?? 0}\n\n✅ Habit statistics\nActive habits: ${habitStats?.total ?? 0}\nHabit completions: ${habitStats?.completed ?? 0}\nHabit skips: ${habitStats?.skipped ?? 0}\nCompleted today: ${habitStats?.today_completed ?? 0}\n\nCompletion chart (last 7 days):\n${chart}`
+      : `📊 آمار تسک‌ها\n\nکل تسک‌ها: ${row.total}\nتکمیل‌شده: ${row.completed}\nیک‌باره باز: ${row.one_time}\nتکرارشونده: ${row.weekly}\nتکرارشونده انجام‌شده امروز: ${doneToday?.count ?? 0}\nانجام‌نشده امروز: ${skippedToday?.count ?? 0}\n\n✅ آمار عادت‌ها\nعادت‌های فعال: ${habitStats?.total ?? 0}\nانجام عادت‌ها: ${habitStats?.completed ?? 0}\nعادت‌های انجام‌نشده: ${habitStats?.skipped ?? 0}\nانجام‌شده امروز: ${habitStats?.today_completed ?? 0}\n\nنمودار تکمیل ۷ روز اخیر:\n${chart}`,
     en ? MENU_EN : MENU);
 }
 
