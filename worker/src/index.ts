@@ -268,6 +268,15 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     await sendMessage(env, chatId, `Enter deadline time for ${date} (for example 18:30):`);
     return;
   }
+  if (data === "new:deadline:none") {
+    const session = await getSession(env.DB, userId);
+    if (!session || session.state !== "await_deadline_date") return;
+    await createTask(env.DB, userId, JSON.parse(session.data) as SessionData, null);
+    await clearSession(env.DB, userId);
+    const en = (await getLanguage(env.DB, userId)) === "en";
+    await sendMessage(env, chatId, en ? "✅ One-time task saved without a deadline." : "✅ تسک یک‌باره بدون ددلاین ذخیره شد.", en ? MENU_EN : MENU);
+    return;
+  }
   if (data.startsWith("new:day:")) {
     const day = Number(data.split(":")[2]);
     const session = await getSession(env.DB, userId);
@@ -493,6 +502,7 @@ function deadlineKeyboard(): ReplyMarkup {
     const value = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tehran", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
     rows.push([{ text: i === 0 ? `امروز (${value})` : value, callback_data: `new:deadline:${value}` }]);
   }
+  rows.push([{ text: "بدون ددلاین / No deadline", callback_data: "new:deadline:none" }]);
   return { inline_keyboard: rows };
 }
 
