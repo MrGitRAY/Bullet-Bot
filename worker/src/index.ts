@@ -254,23 +254,13 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
       await clearSession(env.DB, userId);
       await sendMessage(env, chatId, (await getLanguage(env.DB, userId)) === "en" ? "✅ One-time task saved." : "✅ تسک یک‌باره ذخیره شد.", (await getLanguage(env.DB, userId)) === "en" ? MENU_EN : MENU);
     } else if (sessionData.kind === "one_time") {
-      await setSession(env.DB, userId, "await_deadline_date", sessionData);
-      await sendMessage(env, chatId, (await getLanguage(env.DB, userId)) === "en" ? "Choose the deadline date:" : "روز ددلاین را انتخاب کن:", deadlineKeyboard());
+      await setSession(env.DB, userId, "await_deadline", sessionData);
+      await sendMessage(env, chatId, (await getLanguage(env.DB, userId)) === "en" ? "Send deadline as YYYY.M.D HH:MM (or M.D HH:MM):" : "ددلاین را این‌طور بفرست: 2026.3.3 23:30 (سال اختیاری است)");
     } else {
       sessionData.weekdays = [];
       await setSession(env.DB, userId, "await_weekdays", sessionData);
       await sendMessage(env, chatId, (await getLanguage(env.DB, userId)) === "en" ? "Choose recurring days:" : "روزهای تکرار را انتخاب کن:", weekdayKeyboard([]));
     }
-    return;
-  }
-  if (data.startsWith("new:deadline:")) {
-    const date = data.slice("new:deadline:".length);
-    const session = await getSession(env.DB, userId);
-    if (!session || session.state !== "await_deadline_date") return;
-    const sessionData = JSON.parse(session.data) as SessionData;
-    sessionData.deadlineDate = date;
-    await setSession(env.DB, userId, "await_deadline_time", sessionData);
-    await sendMessage(env, chatId, `Enter deadline time for ${date} (for example 18:30):`);
     return;
   }
   if (data === "new:deadline:none") {
@@ -643,9 +633,15 @@ function normalizeDigits(value: string): string {
 }
 
 function parseLocalDeadline(value: string): string | null {
-  const match = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})$/.exec(value);
+  const normalized = value.trim().replaceAll("/", ".").replaceAll("-", ".");
+  const match = /^(?:(\d{4})\.)?(\d{1,2})\.(\d{1,2})[ T](\d{1,2}):(\d{2})$/.exec(normalized);
   if (!match) return null;
-  const [, year, month, day, hour, minute] = match.map(Number);
+  const [, yearText, monthText, dayText, hourText, minuteText] = match;
+  const year = Number(yearText ?? new Intl.DateTimeFormat("en-US", { timeZone: "Asia/Tehran", year: "numeric" }).format(new Date()));
+  const month = Number(monthText);
+  const day = Number(dayText);
+  const hour = Number(hourText);
+  const minute = Number(minuteText);
   const date = new Date(Date.UTC(year, month - 1, day, hour, minute));
   if (
     date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 ||
