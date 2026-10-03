@@ -35,7 +35,8 @@ const MENU = {
     [{ text: "➕ تسک جدید" }, { text: "📋 تسک‌های امروز" }],
     [{ text: "🗂 همه تسک‌ها" }],
     [{ text: "📊 آمار" }, { text: "راهنما" }],
-    [{ text: "✅ عادت‌ها" }, { text: "📅 برنامه هفتگی" }],
+    [{ text: "✅ عادت جدید" }, { text: "✅ عادت‌ها" }],
+    [{ text: "📅 برنامه هفتگی" }],
   ],
   resize_keyboard: true,
 } satisfies ReplyMarkup;
@@ -135,7 +136,11 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
     await showStats(env, message.chat.id, userId);
     return;
   }
-  if (["✅ عادت‌ها", "/habits", "/habit"].includes(text)) {
+  if (["✅ عادت جدید", "/habit"].includes(text)) {
+    await startHabitCreation(env, message.chat.id, userId);
+    return;
+  }
+  if (["✅ عادت‌ها", "/habits"].includes(text)) {
     await showHabits(env, message.chat.id, userId);
     return;
   }
@@ -171,8 +176,10 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
       await sendMessage(env, message.chat.id, "نام عادت باید بین ۱ تا ۲۰۰ نویسه باشد.");
       return;
     }
-    await setSession(env.DB, userId, "await_habit_days", { habitTitle: text });
-    await sendMessage(env, message.chat.id, "روزهای انجام عادت را انتخاب کن:", weekdayKeyboard([], "habit"));
+    await env.DB.prepare("INSERT INTO habits (user_id, title, weekdays) VALUES (?, ?, ?)")
+      .bind(userId, text, JSON.stringify([1, 2, 3, 4, 5, 6, 7])).run();
+    await clearSession(env.DB, userId);
+    await sendMessage(env, message.chat.id, "✅ عادت روزانه ذخیره شد.", MENU);
     return;
   }
   if (session.state === "await_deadline") {
@@ -206,8 +213,7 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     return;
   }
   if (data === "new:habit") {
-    await setSession(env.DB, userId, "await_habit_title", {});
-    await sendMessage(env, chatId, "نام عادت را بفرست (مثلاً: مطالعه ۲۰ دقیقه):");
+    await startHabitCreation(env, chatId, userId);
     return;
   }
   if (data.startsWith("new:priority:")) {
@@ -292,6 +298,14 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     await sendMessage(env, chatId, "✅ انجام شد.");
     return;
   }
+  if (data.startsWith("task:skip:")) {
+    const taskId = Number(data.split(":")[2]);
+    await env.DB.prepare(
+      "INSERT INTO task_skips (task_id, user_id, occurrence_date) SELECT id, user_id, ? FROM tasks WHERE id = ? AND user_id = ? AND completed = 0 ON CONFLICT(task_id, occurrence_date) DO NOTHING",
+    ).bind(tehranDate(), taskId, userId).run();
+    await sendMessage(env, chatId, "⏭️ برای امروز انجام‌نشده ثبت شد.");
+    return;
+  }
   if (data.startsWith("task:delete:")) {
     const taskId = Number(data.split(":")[2]);
     await env.DB.prepare("DELETE FROM tasks WHERE id = ? AND user_id = ?").bind(taskId, userId).run();
@@ -320,9 +334,13 @@ async function showTasks(env: Env, chatId: number, userId: number, todayOnly: bo
           SELECT 1 FROM task_completions c
            WHERE c.task_id = t.id AND c.occurrence_date = ?
         )
+        AND NOT EXISTS (
+          SELECT 1 FROM task_skips s
+           WHERE s.task_id = t.id AND s.occurrence_date = ?
+        )
       ORDER BY t.deadline IS NULL, t.deadline, t.id
       LIMIT 30`,
-  ).bind(userId, today).all<TaskRow>();
+  ).bind(userId, today, today).all<TaskRow>();
   const tasks = todayOnly
     ? result.results.filter((task) => task.kind === "one_time" || parseWeekdays(task.weekdays).includes(weekday))
     : result.results;
@@ -342,11 +360,17 @@ async function showTasks(env: Env, chatId: number, userId: number, todayOnly: bo
       {
         inline_keyboard: [[
           { text: "✅ انجام شد", callback_data: `task:complete:${task.id}` },
+          { text: "⏭️ انجام نشد", callback_data: `task:skip:${task.id}` },
           { text: "🗑 حذف", callback_data: `task:delete:${task.id}` },
         ]],
       },
     );
   }
+}
+
+async function startHabitCreation(env: Env, chatId: number, userId: number): Promise<void> {
+  await setSession(env.DB, userId, "await_habit_title", {});
+  await sendMessage(env, chatId, "نام عادت روزانه را بفرست (مثلاً: مطالعه ۲۰ دقیقه):");
 }
 
 async function showStats(env: Env, chatId: number, userId: number): Promise<void> {
@@ -366,6 +390,9 @@ async function showStats(env: Env, chatId: number, userId: number): Promise<void
   const doneToday = await env.DB.prepare(
     "SELECT COUNT(*) AS count FROM task_completions WHERE user_id = ? AND occurrence_date = ?",
   ).bind(userId, today).first<{ count: number }>();
+  const skippedToday = await env.DB.prepare(
+    "SELECT COUNT(*) AS count FROM task_skips WHERE user_id = ? AND occurrence_date = ?",
+  ).bind(userId, today).first<{ count: number }>();
   const weeklyDone = await env.DB.prepare(
     `SELECT occurrence_date AS date, COUNT(*) AS count
        FROM task_completions WHERE user_id = ? AND occurrence_date >= date('now', '-6 day')
@@ -380,7 +407,8 @@ async function showStats(env: Env, chatId: number, userId: number): Promise<void
     `تکمیل‌شده: ${row.completed}\n` +
     `یک‌باره باز: ${row.one_time}\n` +
     `تکرارشونده: ${row.weekly}\n` +
-    `تکرارشونده انجام‌شده امروز: ${doneToday?.count ?? 0}\n\nنمودار تکمیل ۷ روز اخیر:\n${chart}`,
+    `تکرارشونده انجام‌شده امروز: ${doneToday?.count ?? 0}\n` +
+    `انجام‌نشده امروز: ${skippedToday?.count ?? 0}\n\nنمودار تکمیل ۷ روز اخیر:\n${chart}`,
     MENU);
 }
 
