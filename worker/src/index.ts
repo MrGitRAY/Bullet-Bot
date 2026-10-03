@@ -11,6 +11,7 @@ type SessionData = {
   weekdays?: number[];
   habitTitle?: string;
   deadlineDate?: string;
+  noDeadline?: boolean;
 };
 
 type TaskRow = {
@@ -231,9 +232,9 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     return;
   }
 
-  if (data === "new:one_time" || data === "new:weekly") {
-    const kind = data === "new:one_time" ? "one_time" : "weekly";
-    await setSession(env.DB, userId, "await_title", { kind });
+  if (data === "new:one_time" || data === "new:one_time_no_deadline" || data === "new:weekly") {
+    const kind = data === "new:weekly" ? "weekly" : "one_time";
+    await setSession(env.DB, userId, "await_title", { kind, noDeadline: data === "new:one_time_no_deadline" });
     await sendMessage(env, chatId, (await getLanguage(env.DB, userId)) === "en" ? "Send the task title:" : "عنوان تسک را بفرست:");
     return;
   }
@@ -248,7 +249,11 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     if (!session || session.state !== "await_priority") return;
     const sessionData = JSON.parse(session.data) as SessionData;
     sessionData.priority = priority;
-    if (sessionData.kind === "one_time") {
+    if (sessionData.kind === "one_time" && sessionData.noDeadline) {
+      await createTask(env.DB, userId, sessionData, null);
+      await clearSession(env.DB, userId);
+      await sendMessage(env, chatId, (await getLanguage(env.DB, userId)) === "en" ? "✅ One-time task saved." : "✅ تسک یک‌باره ذخیره شد.", (await getLanguage(env.DB, userId)) === "en" ? MENU_EN : MENU);
+    } else if (sessionData.kind === "one_time") {
       await setSession(env.DB, userId, "await_deadline_date", sessionData);
       await sendMessage(env, chatId, (await getLanguage(env.DB, userId)) === "en" ? "Choose the deadline date:" : "روز ددلاین را انتخاب کن:", deadlineKeyboard());
     } else {
@@ -368,6 +373,7 @@ async function showTaskType(env: Env, chatId: number, userId: number): Promise<v
   await sendMessage(env, chatId, en ? "Choose task type:" : "نوع تسک را انتخاب کن:", {
     inline_keyboard: [
       [{ text: en ? "⏰ One-time with deadline" : "⏰ یک‌باره با ددلاین", callback_data: "new:one_time" }],
+      [{ text: en ? "📝 One-time without deadline" : "📝 یک‌باره بدون ددلاین", callback_data: "new:one_time_no_deadline" }],
       [{ text: en ? "🔁 Weekly recurring" : "🔁 تکرارشونده هفتگی", callback_data: "new:weekly" }],
     ],
   });
