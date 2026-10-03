@@ -506,17 +506,19 @@ async function habitStreak(db: D1Database, habitId: number, today: string): Prom
 }
 
 async function showWeeklyPlan(env: Env, chatId: number, userId: number): Promise<void> {
+  const en = (await getLanguage(env.DB, userId)) === "en";
   const tasks = await env.DB.prepare("SELECT title, kind, deadline, weekdays FROM tasks WHERE user_id = ? AND completed = 0 ORDER BY id DESC LIMIT 100")
     .bind(userId).all<{ title: string; kind: string; deadline: string | null; weekdays: string | null }>();
   const habits = await env.DB.prepare("SELECT title, weekdays FROM habits WHERE user_id = ? AND active = 1 ORDER BY id DESC LIMIT 100")
     .bind(userId).all<{ title: string; weekdays: string }>();
-  const lines = WEEKDAYS.map(([day, label]) => {
+  const englishDays = ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+  const lines = WEEKDAYS.map(([day, label], index) => {
     const dayTasks = tasks.results.filter((task) => task.kind === "weekly" ? parseWeekdays(task.weekdays).includes(day) : false).map((task) => `• ${task.title}`);
     const dayHabits = habits.results.filter((habit) => parseWeekdays(habit.weekdays).includes(day)).map((habit) => `✓ ${habit.title}`);
-    return `<b>${label}</b>\n${[...dayTasks, ...dayHabits].join("\n") || "—"}`;
+    return `<b>${en ? englishDays[index] : label}</b>\n${[...dayTasks, ...dayHabits].join("\n") || "—"}`;
   });
-  const oneTime = tasks.results.filter((task) => task.kind === "one_time").map((task) => `• ${task.title} (${task.deadline ?? "بدون ددلاین"})`);
-  await sendMessage(env, chatId, `📅 برنامه هفتگی\n\n${lines.join("\n\n")}${oneTime.length ? `\n\n<b>تسک‌های یک‌باره</b>\n${oneTime.join("\n")}` : ""}`, MENU);
+  const oneTime = tasks.results.filter((task) => task.kind === "one_time").map((task) => `• ${task.title} (${task.deadline ?? (en ? "no deadline" : "بدون ددلاین")})`);
+  await sendMessage(env, chatId, `${en ? "📅 Weekly plan" : "📅 برنامه هفتگی"}\n\n${lines.join("\n\n")}${oneTime.length ? `\n\n<b>${en ? "One-time tasks" : "تسک‌های یک‌باره"}</b>\n${oneTime.join("\n")}` : ""}`, en ? MENU_EN : MENU);
 }
 
 async function ensureUser(db: D1Database, user: TelegramUser): Promise<number> {
