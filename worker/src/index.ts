@@ -34,19 +34,17 @@ type ReplyMarkup = {
 
 const MENU = {
   keyboard: [
-    [{ text: "➕ تسک جدید" }, { text: "📋 تسک‌های امروز" }],
-    [{ text: "🗂 همه تسک‌ها" }],
-    [{ text: "📊 آمار" }, { text: "راهنما" }],
-    [{ text: "✅ عادت جدید" }, { text: "✅ عادت‌ها" }],
-    [{ text: "📅 برنامه هفتگی" }],
-    [{ text: "🏆 لیدربرد" }],
-    [{ text: "🌐 تغییر زبان" }],
+    [{ text: "➕ تسک جدید" }, { text: "✅ عادت جدید" }],
+    [{ text: "📋 تسک‌های امروز" }, { text: "✅ عادت‌ها" }],
+    [{ text: "🗂 همه تسک‌ها" }, { text: "📅 برنامه هفتگی" }],
+    [{ text: "📊 آمار" }, { text: "🏆 لیدربرد" }],
+    [{ text: "🌐 تغییر زبان" }, { text: "راهنما" }],
   ],
   resize_keyboard: true,
 } satisfies ReplyMarkup;
 
 const MENU_EN: ReplyMarkup = {
-  keyboard: [[{ text: "➕ New task" }, { text: "📋 Today's tasks" }], [{ text: "🗂 All tasks" }], [{ text: "📊 Statistics" }, { text: "✅ New habit" }], [{ text: "✅ Habits" }, { text: "📅 Weekly plan" }], [{ text: "🏆 Leaderboard" }], [{ text: "🌐 English" }]],
+  keyboard: [[{ text: "➕ New task" }, { text: "✅ New habit" }], [{ text: "📋 Today's tasks" }, { text: "✅ Habits" }], [{ text: "🗂 All tasks" }, { text: "📅 Weekly plan" }], [{ text: "📊 Statistics" }, { text: "🏆 Leaderboard" }], [{ text: "🌐 English" }, { text: "Help" }]],
   resize_keyboard: true,
 };
 
@@ -115,7 +113,7 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
     await sendMessage(env, message.chat.id, language === "en" ? "Welcome to Bullet Journal. Choose an option:" : "به Bullet Journal خوش آمدی. از منوی زیر شروع کن:", language === "en" ? MENU_EN : MENU);
     return;
   }
-  if (["/help", "راهنما"].includes(text)) {
+  if (["/help", "راهنما", "Help"].includes(text)) {
     const help = language === "en"
       ? "Bullet Bot help:\n\n➕ New task or /task — create one-time or weekly tasks\n📋 Today's tasks or /today — tasks for today\n🗂 All tasks or /tasks — all open tasks\n📊 Statistics or /stats — progress summary\n✅ New habit or /habit — create a daily habit\n✅ Habits or /habits — habits and streaks\n📅 Weekly plan or /week — weekly table\n/cancel — cancel current operation"
       : "راهنمای Bullet Bot:\n\n➕ تسک جدید یا /task — ساخت تسک یک‌باره یا هفتگی\n📋 تسک‌های امروز یا /today — تسک‌های امروز\n🗂 همه تسک‌ها یا /tasks — همه تسک‌های باز\n📊 آمار یا /stats — خلاصه وضعیت\n✅ عادت جدید یا /habit — ساخت عادت روزانه\n✅ عادت‌ها یا /habits — عادت‌ها و زنجیره\n📅 برنامه هفتگی یا /week — جدول هفتگی\n/cancel — لغو عملیات جاری";
