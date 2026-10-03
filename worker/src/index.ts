@@ -34,8 +34,8 @@ type ReplyMarkup = {
 
 const MENU = {
   keyboard: [
-    [{ text: "➕ تسک جدید" }, { text: "✅ عادت جدید" }],
-    [{ text: "📋 تسک‌های امروز" }, { text: "✅ عادت‌ها" }],
+    [{ text: "🔴➕ تسک جدید" }, { text: "🟢➕ عادت جدید" }],
+    [{ text: "📋 تسک‌های امروز" }, { text: "📋 عادت‌ها" }],
     [{ text: "🗂 همه تسک‌ها" }, { text: "📅 برنامه هفتگی" }],
     [{ text: "📊 آمار" }, { text: "🏆 لیدربرد" }],
     [{ text: "✏️ تغییر نام" }, { text: "🌐 تغییر زبان" }],
@@ -45,7 +45,7 @@ const MENU = {
 } satisfies ReplyMarkup;
 
 const MENU_EN: ReplyMarkup = {
-  keyboard: [[{ text: "➕ New task" }, { text: "✅ New habit" }], [{ text: "📋 Today's tasks" }, { text: "✅ Habits" }], [{ text: "🗂 All tasks" }, { text: "📅 Weekly plan" }], [{ text: "📊 Statistics" }, { text: "🏆 Leaderboard" }], [{ text: "✏️ Change name" }, { text: "🌐 English" }], [{ text: "Help" }]],
+  keyboard: [[{ text: "🔴➕ New task" }, { text: "🟢➕ New habit" }], [{ text: "📋 Today's tasks" }, { text: "📋 Habits" }], [{ text: "🗂 All tasks" }, { text: "📅 Weekly plan" }], [{ text: "📊 Statistics" }, { text: "🏆 Leaderboard" }], [{ text: "✏️ Change name" }, { text: "🌐 English" }], [{ text: "Help" }]],
   resize_keyboard: true,
 };
 
@@ -141,7 +141,7 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
     await sendMessage(env, message.chat.id, "زبان / Language:", { inline_keyboard: [[{ text: "English", callback_data: "lang:en" }, { text: "فارسی", callback_data: "lang:fa" }]] });
     return;
   }
-  if (["/task", "➕ تسک جدید", "➕ New task"].includes(text)) {
+  if (["/task", "➕ تسک جدید", "🔴➕ تسک جدید", "➕ New task", "🔴➕ New task"].includes(text)) {
     await showTaskType(env, message.chat.id, userId);
     return;
   }
@@ -157,11 +157,11 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
     await showStats(env, message.chat.id, userId);
     return;
   }
-  if (["✅ عادت جدید", "✅ New habit", "/habit"].includes(text)) {
+  if (["✅ عادت جدید", "🟢➕ عادت جدید", "✅ New habit", "🟢➕ New habit", "/habit"].includes(text)) {
     await startHabitCreation(env, message.chat.id, userId);
     return;
   }
-  if (["✅ عادت‌ها", "✅ Habits", "/habits"].includes(text)) {
+  if (["✅ عادت‌ها", "📋 عادت‌ها", "✅ Habits", "📋 Habits", "/habits"].includes(text)) {
     await showHabits(env, message.chat.id, userId);
     return;
   }
@@ -504,7 +504,7 @@ async function showHabits(env: Env, chatId: number, userId: number): Promise<voi
   const habits = await env.DB.prepare("SELECT id, title, weekdays FROM habits WHERE user_id = ? AND active = 1 ORDER BY id DESC LIMIT 30")
     .bind(userId).all<{ id: number; title: string; weekdays: string }>();
   if (!habits.results.length) {
-    await sendMessage(env, chatId, en ? "You have no habits yet. Choose New habit to create one." : "هنوز عادتی ثبت نکرده‌ای. از «✅ عادت جدید» شروع کن.", en ? MENU_EN : MENU);
+    await sendMessage(env, chatId, en ? "You have no habits yet. Choose New habit to create one." : "هنوز عادتی ثبت نکرده‌ای. از «🟢➕ عادت جدید» شروع کن.", en ? MENU_EN : MENU);
     return;
   }
   const weekday = tehranWeekday();
