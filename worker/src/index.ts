@@ -9,6 +9,7 @@ type SessionData = {
   title?: string;
   priority?: "low" | "medium" | "high";
   weekdays?: number[];
+  habitTitle?: string;
 };
 
 type TaskRow = {
@@ -34,6 +35,7 @@ const MENU = {
     [{ text: "➕ تسک جدید" }, { text: "📋 تسک‌های امروز" }],
     [{ text: "🗂 همه تسک‌ها" }],
     [{ text: "📊 آمار" }, { text: "راهنما" }],
+    [{ text: "✅ عادت‌ها" }, { text: "📅 برنامه هفتگی" }],
   ],
   resize_keyboard: true,
 } satisfies ReplyMarkup;
@@ -133,6 +135,14 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
     await showStats(env, message.chat.id, userId);
     return;
   }
+  if (["✅ عادت‌ها", "/habits", "/habit"].includes(text)) {
+    await showHabits(env, message.chat.id, userId);
+    return;
+  }
+  if (["📅 برنامه هفتگی", "/week"].includes(text)) {
+    await showWeeklyPlan(env, message.chat.id, userId);
+    return;
+  }
 
   const session = await getSession(env.DB, userId);
   if (!session) {
@@ -154,6 +164,15 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
         { text: "🔴 زیاد", callback_data: "new:priority:high" },
       ]],
     });
+    return;
+  }
+  if (session.state === "await_habit_title") {
+    if (text.length < 1 || text.length > 200) {
+      await sendMessage(env, message.chat.id, "نام عادت باید بین ۱ تا ۲۰۰ نویسه باشد.");
+      return;
+    }
+    await setSession(env.DB, userId, "await_habit_days", { habitTitle: text });
+    await sendMessage(env, message.chat.id, "روزهای انجام عادت را انتخاب کن:", weekdayKeyboard([], "habit"));
     return;
   }
   if (session.state === "await_deadline") {
@@ -186,6 +205,11 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     await sendMessage(env, chatId, "عنوان تسک را بفرست:");
     return;
   }
+  if (data === "new:habit") {
+    await setSession(env.DB, userId, "await_habit_title", {});
+    await sendMessage(env, chatId, "نام عادت را بفرست (مثلاً: مطالعه ۲۰ دقیقه):");
+    return;
+  }
   if (data.startsWith("new:priority:")) {
     const priority = data.split(":")[2] as SessionData["priority"];
     if (!priority || !Object.hasOwn(PRIORITIES, priority)) return;
@@ -213,7 +237,7 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     sessionData.weekdays = [...selected].sort();
     await setSession(env.DB, userId, "await_weekdays", sessionData);
     if (query.message) {
-      await editMarkup(env, chatId, query.message.message_id, weekdayKeyboard(sessionData.weekdays));
+      await editMarkup(env, chatId, query.message.message_id, weekdayKeyboard(sessionData.weekdays, "task"));
     }
     return;
   }
@@ -228,6 +252,38 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     await createTask(env.DB, userId, sessionData, null);
     await clearSession(env.DB, userId);
     await sendMessage(env, chatId, "✅ تسک تکرارشونده ذخیره شد.", MENU);
+    return;
+  }
+  if (data.startsWith("habit:day:")) {
+    const day = Number(data.split(":")[2]);
+    const session = await getSession(env.DB, userId);
+    if (!session || session.state !== "await_habit_days" || day < 1 || day > 7) return;
+    const sessionData = JSON.parse(session.data) as SessionData;
+    const selected = new Set(sessionData.weekdays ?? []);
+    selected.has(day) ? selected.delete(day) : selected.add(day);
+    sessionData.weekdays = [...selected].sort();
+    await setSession(env.DB, userId, "await_habit_days", sessionData);
+    if (query.message) await editMarkup(env, chatId, query.message.message_id, weekdayKeyboard(sessionData.weekdays, "habit"));
+    return;
+  }
+  if (data === "habit:days_done") {
+    const session = await getSession(env.DB, userId);
+    const sessionData = session ? JSON.parse(session.data) as SessionData : {};
+    if (!session || session.state !== "await_habit_days" || !sessionData.habitTitle || !sessionData.weekdays?.length) {
+      await sendMessage(env, chatId, "حداقل یک روز را انتخاب کن.");
+      return;
+    }
+    await env.DB.prepare("INSERT INTO habits (user_id, title, weekdays) VALUES (?, ?, ?)")
+      .bind(userId, sessionData.habitTitle, JSON.stringify(sessionData.weekdays)).run();
+    await clearSession(env.DB, userId);
+    await sendMessage(env, chatId, "✅ عادت ذخیره شد.", MENU);
+    return;
+  }
+  if (data.startsWith("habit:complete:")) {
+    const habitId = Number(data.split(":")[2]);
+    await env.DB.prepare("INSERT INTO habit_completions (habit_id, user_id, occurrence_date) SELECT id, user_id, ? FROM habits WHERE id = ? AND user_id = ? AND active = 1 ON CONFLICT(habit_id, occurrence_date) DO NOTHING")
+      .bind(tehranDate(), habitId, userId).run();
+    await sendMessage(env, chatId, "✅ عادت امروز ثبت شد.");
     return;
   }
   if (data.startsWith("task:complete:")) {
@@ -248,6 +304,7 @@ async function showTaskType(env: Env, chatId: number): Promise<void> {
     inline_keyboard: [
       [{ text: "⏰ یک‌باره با ددلاین", callback_data: "new:one_time" }],
       [{ text: "🔁 تکرارشونده هفتگی", callback_data: "new:weekly" }],
+      [{ text: "✅ عادت جدید", callback_data: "new:habit" }],
     ],
   });
 }
@@ -319,17 +376,50 @@ async function showStats(env: Env, chatId: number, userId: number): Promise<void
     MENU);
 }
 
-function weekdayKeyboard(selected: number[]): ReplyMarkup {
+function weekdayKeyboard(selected: number[], mode: "task" | "habit" = "task"): ReplyMarkup {
   const chosen = new Set(selected);
   const rows: InlineButton[][] = [];
   for (let index = 0; index < WEEKDAYS.length; index += 2) {
     rows.push(WEEKDAYS.slice(index, index + 2).map(([value, label]) => ({
       text: `${chosen.has(value) ? "✅ " : ""}${label}`,
-      callback_data: `new:day:${value}`,
+      callback_data: `${mode === "habit" ? "habit" : "new"}:day:${value}`,
     })));
   }
-  rows.push([{ text: "ثبت روزها", callback_data: "new:days_done" }]);
+  rows.push([{ text: "ثبت روزها", callback_data: mode === "habit" ? "habit:days_done" : "new:days_done" }]);
   return { inline_keyboard: rows };
+}
+
+async function showHabits(env: Env, chatId: number, userId: number): Promise<void> {
+  const habits = await env.DB.prepare("SELECT id, title, weekdays FROM habits WHERE user_id = ? AND active = 1 ORDER BY id DESC LIMIT 30")
+    .bind(userId).all<{ id: number; title: string; weekdays: string }>();
+  if (!habits.results.length) {
+    await sendMessage(env, chatId, "هنوز عادتی ثبت نکرده‌ای. از «➕ تسک جدید» و گزینه «عادت جدید» شروع کن.", MENU);
+    return;
+  }
+  const weekday = tehranWeekday();
+  await sendMessage(env, chatId, "✅ عادت‌های امروز:");
+  for (const habit of habits.results) {
+    const days = parseWeekdays(habit.weekdays);
+    const scheduled = days.includes(weekday);
+    const done = scheduled ? await env.DB.prepare("SELECT 1 FROM habit_completions WHERE habit_id = ? AND occurrence_date = ?")
+      .bind(habit.id, tehranDate()).first() : null;
+    await sendMessage(env, chatId, `${done ? "✅" : scheduled ? "⬜" : "▫️"} ${escapeHtml(habit.title)}\nروزها: ${formatWeekdays(days)}`,
+      scheduled && !done ? { inline_keyboard: [[{ text: "ثبت انجام امروز", callback_data: `habit:complete:${habit.id}` }]] } : undefined);
+  }
+}
+
+async function showWeeklyPlan(env: Env, chatId: number, userId: number): Promise<void> {
+  const tasks = await env.DB.prepare("SELECT title, kind, deadline, weekdays FROM tasks WHERE user_id = ? AND completed = 0 ORDER BY id DESC LIMIT 100")
+    .bind(userId).all<{ title: string; kind: string; deadline: string | null; weekdays: string | null }>();
+  const habits = await env.DB.prepare("SELECT title, weekdays FROM habits WHERE user_id = ? AND active = 1 ORDER BY id DESC LIMIT 100")
+    .bind(userId).all<{ title: string; weekdays: string }>();
+  const lines = WEEKDAYS.map(([day, label]) => {
+    const dayTasks = tasks.results.filter((task) => task.kind === "weekly" ? parseWeekdays(task.weekdays).includes(day) : false).map((task) => `• ${task.title}`);
+    const dayHabits = habits.results.filter((habit) => parseWeekdays(habit.weekdays).includes(day)).map((habit) => `✓ ${habit.title}`);
+    return `<b>${label}</b>\n${[...dayTasks, ...dayHabits].join("\n") || "—"}`;
+  });
+  const oneTime = tasks.results.filter((task) => task.kind === "one_time").map((task) => `• ${task.title} (${task.deadline ?? "بدون ددلاین"})`);
+  await sendMessage(env, chatId, `📅 برنامه هفتگی\n\n${lines.join("\n\n")}${oneTime.length ? `\n\n<b>تسک‌های یک‌باره</b>\n${oneTime.join("\n")}` : ""}`, MENU);
 }
 
 async function ensureUser(db: D1Database, user: TelegramUser): Promise<number> {
