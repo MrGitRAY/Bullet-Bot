@@ -116,7 +116,7 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
   if (["/help", "راهنما"].includes(text)) {
     const help = language === "en"
       ? "Bullet Bot help:\n\n➕ New task or /task — create one-time or weekly tasks\n📋 Today's tasks or /today — tasks for today\n🗂 All tasks or /tasks — all open tasks\n📊 Statistics or /stats — progress summary\n✅ New habit or /habit — create a daily habit\n✅ Habits or /habits — habits and streaks\n📅 Weekly plan or /week — weekly table\n/cancel — cancel current operation"
-      : "راهنمای Bullet Bot:\n\n➕ تسک جدید یا /task — ساخت تسک یک‌باره یا هفتگی\n📋 تسک‌های امروز یا /today — تسک‌های امروز\n🗂 همه تسک‌ها یا /tasks — همه تسک‌های باز\n📊 آمار یا /stats — خلاصه وضعیت\n✅ عادت جدید یا /habit — ساخت عادت روزانه\n✅ عادت‌ها یا /habits — عادت‌ها و streak\n📅 برنامه هفتگی یا /week — جدول هفتگی\n/cancel — لغو عملیات جاری";
+      : "راهنمای Bullet Bot:\n\n➕ تسک جدید یا /task — ساخت تسک یک‌باره یا هفتگی\n📋 تسک‌های امروز یا /today — تسک‌های امروز\n🗂 همه تسک‌ها یا /tasks — همه تسک‌های باز\n📊 آمار یا /stats — خلاصه وضعیت\n✅ عادت جدید یا /habit — ساخت عادت روزانه\n✅ عادت‌ها یا /habits — عادت‌ها و زنجیره\n📅 برنامه هفتگی یا /week — جدول هفتگی\n/cancel — لغو عملیات جاری";
     await sendMessage(env, message.chat.id, help, language === "en" ? MENU_EN : MENU);
     return;
   }
@@ -480,7 +480,7 @@ async function showHabits(env: Env, chatId: number, userId: number): Promise<voi
     const done = scheduled ? await env.DB.prepare("SELECT 1 FROM habit_completions WHERE habit_id = ? AND occurrence_date = ?")
       .bind(habit.id, tehranDate()).first() : null;
     const streak = await habitStreak(env.DB, habit.id, tehranDate());
-    await sendMessage(env, chatId, `${done ? "✅" : scheduled ? "⬜" : "▫️"} ${escapeHtml(habit.title)}\n🔥 ${en ? "Current streak" : "streak فعلی"}: ${streak} ${en ? "days" : "روز"}`,
+    await sendMessage(env, chatId, `${done ? "✅" : scheduled ? "⬜" : "▫️"} ${escapeHtml(habit.title)}\n🔥 ${en ? "Current streak" : "زنجیره فعلی"}: ${streak} ${en ? "days" : "روز"}`,
       scheduled && !done ? { inline_keyboard: [[{ text: en ? "✅ Done" : "✅ انجام شد", callback_data: `habit:complete:${habit.id}` }, { text: en ? "⏭️ Skipped" : "⏭️ انجام نشد", callback_data: `habit:skip:${habit.id}` }]] } : undefined);
   }
 }
