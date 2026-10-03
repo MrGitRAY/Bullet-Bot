@@ -1,10 +1,8 @@
 .env
-.venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
-data/
 *.db
 *.db-*
 .coverage
@@ -15,5 +13,3 @@ worker/.wrangler/
 worker/.wrangler-config/
 worker/.dev.vars
 worker/worker-configuration.d.ts
-
-.venv-win/

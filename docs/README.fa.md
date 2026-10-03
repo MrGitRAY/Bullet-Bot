@@ -1,71 +1,11 @@
-# راه‌اندازی bullet-bot
+# راهنمای فارسی
 
-این نسخه زیرساخت اولیه و مدیریت پایهٔ کارها را دارد: دیتابیس، ثبت کاربر، دستورهای
-`/start`، `/menu` و `/task`، کارهای یک‌باره با مهلت الزامی، کارهای تکرارشونده در
-روزهای انتخابی هفته، تاریخچهٔ هر نوبت تکمیل، مشاهدهٔ جزئیات، ویرایش و حذف کارها،
-منوی فارسی و انگلیسی، تنظیمات، لاگ و Docker. سایر قابلیت‌های آینده فعلاً پیام «در
-نسخه‌های بعد» نشان می‌دهند.
+این پروژه فقط با Cloudflare Workers و Cloudflare D1 اجرا می‌شود.
 
-## ویندوز
-
-Python نسخهٔ ۳٫۱۲ یا بالاتر را نصب کنید. در PowerShell و پوشهٔ پروژه:
-
-```powershell
-py -3.12 -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements-dev.txt
-Copy-Item .env.example .env
+```text
+Telegram Bot → Webhook → Cloudflare Worker → D1 (SQLite)
 ```
 
-فایل `.env` را باز کنید و توکن دریافتی از `@BotFather` را در `BOT_TOKEN` بگذارید.
-برای استفادهٔ شخصی، `ALLOWED_USER_IDS` را به شکل `[123456789]` با شناسهٔ عددی
-خودتان تنظیم کنید. مقدار `[]` دسترسی همهٔ کاربران در گفت‌وگوی خصوصی را مجاز می‌کند.
-فایل `.env` و اطلاعات دفترچه نباید به GitHub ارسال شوند.
+کد کامل تولید در پوشه `worker/` قرار دارد. مسیر Python/Aiogram، polling، SQLite محلی و Docker حذف شده‌اند.
 
-```powershell
-.\.venv\Scripts\python.exe -m alembic upgrade head
-.\.venv\Scripts\python.exe -m app.main
-```
-
-در تلگرام به ربات `/start` بفرستید. برای توقف از Ctrl+C استفاده کنید.
-فعال‌سازی محیط مجازی اختیاری است: `.\.venv\Scripts\Activate.ps1`؛ دستورهای بالا
-بدون فعال‌سازی هم کار می‌کنند. در VS Code همین محیط مجازی را انتخاب کنید.
-
-در این فضای کاری، محیط آمادهٔ بررسی `.venv-win` است؛ برای اجرای مستقیم همین نسخه
-می‌توانید در دستورها `.venv` را با `.venv-win` جایگزین کنید.
-
-اگر اتصال مستقیم به Telegram Bot API تایم‌اوت می‌شود، پراکسی SOCKS5 یا HTTP را در
-فایل خصوصی `.env` قرار دهید:
-
-```env
-TELEGRAM_PROXY_URL=socks5://username:password@proxy-host:1080
-```
-
-اگر نام کاربری و رمز ندارد از `socks5://proxy-host:1080` استفاده کنید. پراکسی تنظیم‌شده
-در Telegram Desktop فقط همان برنامه را پوشش می‌دهد؛ باید مشخصات server و port آن را
-از تنظیمات Telegram بردارید و در `.env` بگذارید. پراکسی MTProto برای Bot API قابل
-استفاده نیست و در آن حالت باید یک پراکسی SOCKS5 یا HTTP تهیه کنید. اطلاعات پراکسی را
-داخل `.env.example` یا Git قرار ندهید.
-
-## Docker
-
-پس از نصب Docker Desktop و ساخت `.env`:
-
-```powershell
-docker compose up --build -d
-docker compose logs -f bot
-docker compose down
-```
-
-دیتابیس داخل volume ذخیره می‌شود؛ گزینهٔ `-v` هنگام حذف سرویس، داده‌ها را پاک می‌کند.
-هم‌زمان فقط یک نمونهٔ ربات برای هر توکن اجرا کنید. دسترسی خروجی به Telegram لازم است.
-
-## تست و مراحل بعد
-
-```powershell
-.\.venv\Scripts\python.exe -m pytest -q
-.\.venv\Scripts\python.exe -m ruff check .
-```
-
-قدم بعدی، پروژه‌ها و اتصال کارها به پروژه و سپس ثبت عادت، محاسبهٔ زنجیره، امتیاز
-و یادآوری‌های پایدار است. فعلاً هوش مصنوعی پیاده نشده است.
-تغییر آدرس دیتابیس به PostgreSQL داده‌های قبلی را خودکار منتقل نمی‌کند.
+برای استقرار، راهنمای [worker/README.md](../worker/README.md) را دنبال کنید.
