@@ -318,7 +318,6 @@ async function showTaskType(env: Env, chatId: number): Promise<void> {
     inline_keyboard: [
       [{ text: "⏰ یک‌باره با ددلاین", callback_data: "new:one_time" }],
       [{ text: "🔁 تکرارشونده هفتگی", callback_data: "new:weekly" }],
-      [{ text: "✅ عادت جدید", callback_data: "new:habit" }],
     ],
   });
 }
