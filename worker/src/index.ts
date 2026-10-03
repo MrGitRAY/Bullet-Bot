@@ -38,6 +38,7 @@ const MENU = {
     [{ text: "📊 آمار" }, { text: "راهنما" }],
     [{ text: "✅ عادت جدید" }, { text: "✅ عادت‌ها" }],
     [{ text: "📅 برنامه هفتگی" }],
+    [{ text: "🌐 تغییر زبان" }],
   ],
   resize_keyboard: true,
 } satisfies ReplyMarkup;
@@ -124,7 +125,7 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
     await sendMessage(env, message.chat.id, "عملیات لغو شد.", MENU);
     return;
   }
-  if (text === "🌐 زبان فارسی" || text === "🌐 English") {
+  if (["🌐 تغییر زبان", "🌐 زبان فارسی", "🌐 English"].includes(text)) {
     await sendMessage(env, message.chat.id, "زبان / Language:", { inline_keyboard: [[{ text: "English", callback_data: "lang:en" }, { text: "فارسی", callback_data: "lang:fa" }]] });
     return;
   }
