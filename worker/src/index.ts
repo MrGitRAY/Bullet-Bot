@@ -39,13 +39,14 @@ const MENU = {
     [{ text: "📊 آمار" }, { text: "راهنما" }],
     [{ text: "✅ عادت جدید" }, { text: "✅ عادت‌ها" }],
     [{ text: "📅 برنامه هفتگی" }],
+    [{ text: "🏆 لیدربرد" }],
     [{ text: "🌐 تغییر زبان" }],
   ],
   resize_keyboard: true,
 } satisfies ReplyMarkup;
 
 const MENU_EN: ReplyMarkup = {
-  keyboard: [[{ text: "➕ New task" }, { text: "📋 Today's tasks" }], [{ text: "🗂 All tasks" }], [{ text: "📊 Statistics" }, { text: "✅ New habit" }], [{ text: "✅ Habits" }, { text: "📅 Weekly plan" }], [{ text: "🌐 English" }]],
+  keyboard: [[{ text: "➕ New task" }, { text: "📋 Today's tasks" }], [{ text: "🗂 All tasks" }], [{ text: "📊 Statistics" }, { text: "✅ New habit" }], [{ text: "✅ Habits" }, { text: "📅 Weekly plan" }], [{ text: "🏆 Leaderboard" }], [{ text: "🌐 English" }]],
   resize_keyboard: true,
 };
 
@@ -156,6 +157,10 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
   }
   if (["📅 برنامه هفتگی", "📅 Weekly plan", "/week"].includes(text)) {
     await showWeeklyPlan(env, message.chat.id, userId);
+    return;
+  }
+  if (["🏆 لیدربرد", "🏆 Leaderboard", "/leaderboard", "/top"].includes(text)) {
+    await showLeaderboard(env, message.chat.id, userId);
     return;
   }
 
@@ -326,8 +331,9 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
   }
   if (data.startsWith("habit:complete:")) {
     const habitId = Number(data.split(":")[2]);
-    await env.DB.prepare("INSERT INTO habit_completions (habit_id, user_id, occurrence_date) SELECT id, user_id, ? FROM habits WHERE id = ? AND user_id = ? AND active = 1 ON CONFLICT(habit_id, occurrence_date) DO NOTHING")
+    const completion = await env.DB.prepare("INSERT INTO habit_completions (habit_id, user_id, occurrence_date) SELECT id, user_id, ? FROM habits WHERE id = ? AND user_id = ? AND active = 1 ON CONFLICT(habit_id, occurrence_date) DO NOTHING")
       .bind(tehranDate(), habitId, userId).run();
+    if (completion.meta.changes > 0) await env.DB.prepare("UPDATE users SET xp = xp + 5 WHERE id = ?").bind(userId).run();
     await sendMessage(env, chatId, "✅ عادت امروز ثبت شد.");
     return;
   }
@@ -557,12 +563,21 @@ async function completeTask(db: D1Database, userId: number, taskId: number, occu
   if (!task) return;
   if (task.kind === "one_time") {
     await db.prepare("UPDATE tasks SET completed = 1 WHERE id = ? AND user_id = ?").bind(taskId, userId).run();
+    await db.prepare("UPDATE users SET xp = xp + 10 WHERE id = ?").bind(userId).run();
   } else {
-    await db.prepare(
+    const result = await db.prepare(
       `INSERT INTO task_completions (task_id, user_id, occurrence_date) VALUES (?, ?, ?)
        ON CONFLICT(task_id, occurrence_date) DO NOTHING`,
     ).bind(taskId, userId, occurrenceDate).run();
+    if (result.meta.changes > 0) await db.prepare("UPDATE users SET xp = xp + 10 WHERE id = ?").bind(userId).run();
   }
+}
+
+async function showLeaderboard(env: Env, chatId: number, userId: number): Promise<void> {
+  const en = (await getLanguage(env.DB, userId)) === "en";
+  const rows = await env.DB.prepare("SELECT telegram_id, username, xp FROM users ORDER BY xp DESC, id ASC LIMIT 20").all<{ telegram_id: number; username: string | null; xp: number }>();
+  const lines = rows.results.map((row, index) => `${index + 1}. ${escapeHtml(row.username ? `@${row.username}` : `User ${row.telegram_id}`)} — ${row.xp} XP`);
+  await sendMessage(env, chatId, `${en ? "🏆 Leaderboard" : "🏆 لیدربرد XP"}\n\n${lines.join("\n") || (en ? "No users yet." : "هنوز کاربری ثبت نشده است.")}`, en ? MENU_EN : MENU);
 }
 
 async function getSession(db: D1Database, userId: number): Promise<{ state: string; data: string } | null> {
