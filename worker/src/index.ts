@@ -165,16 +165,17 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
   const data = JSON.parse(session.data) as SessionData;
   if (session.state === "await_title") {
     if (text.length < 1 || text.length > 500) {
-      await sendMessage(env, message.chat.id, "عنوان باید بین ۱ تا ۵۰۰ نویسه باشد.");
+      await sendMessage(env, message.chat.id, (await getLanguage(env.DB, userId)) === "en" ? "Title must be between 1 and 500 characters." : "عنوان باید بین ۱ تا ۵۰۰ نویسه باشد.");
       return;
     }
     data.title = text;
     await setSession(env.DB, userId, "await_priority", data);
-    await sendMessage(env, message.chat.id, "اولویت را انتخاب کن:", {
+    const en = (await getLanguage(env.DB, userId)) === "en";
+    await sendMessage(env, message.chat.id, en ? "Choose priority:" : "اولویت را انتخاب کن:", {
       inline_keyboard: [[
-        { text: "🟢 کم", callback_data: "new:priority:low" },
-        { text: "🟡 متوسط", callback_data: "new:priority:medium" },
-        { text: "🔴 زیاد", callback_data: "new:priority:high" },
+        { text: en ? "🟢 Low" : "🟢 کم", callback_data: "new:priority:low" },
+        { text: en ? "🟡 Medium" : "🟡 متوسط", callback_data: "new:priority:medium" },
+        { text: en ? "🔴 High" : "🔴 زیاد", callback_data: "new:priority:high" },
       ]],
     });
     return;
@@ -232,7 +233,7 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
   if (data === "new:one_time" || data === "new:weekly") {
     const kind = data === "new:one_time" ? "one_time" : "weekly";
     await setSession(env.DB, userId, "await_title", { kind });
-    await sendMessage(env, chatId, "عنوان تسک را بفرست:");
+    await sendMessage(env, chatId, (await getLanguage(env.DB, userId)) === "en" ? "Send the task title:" : "عنوان تسک را بفرست:");
     return;
   }
   if (data === "new:habit") {
@@ -248,11 +249,11 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     sessionData.priority = priority;
     if (sessionData.kind === "one_time") {
       await setSession(env.DB, userId, "await_deadline_date", sessionData);
-      await sendMessage(env, chatId, "روز ددلاین را انتخاب کن:", deadlineKeyboard());
+      await sendMessage(env, chatId, (await getLanguage(env.DB, userId)) === "en" ? "Choose the deadline date:" : "روز ددلاین را انتخاب کن:", deadlineKeyboard());
     } else {
       sessionData.weekdays = [];
       await setSession(env.DB, userId, "await_weekdays", sessionData);
-      await sendMessage(env, chatId, "روزهای تکرار را انتخاب کن:", weekdayKeyboard([]));
+      await sendMessage(env, chatId, (await getLanguage(env.DB, userId)) === "en" ? "Choose recurring days:" : "روزهای تکرار را انتخاب کن:", weekdayKeyboard([]));
     }
     return;
   }
@@ -263,7 +264,7 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     const sessionData = JSON.parse(session.data) as SessionData;
     sessionData.deadlineDate = date;
     await setSession(env.DB, userId, "await_deadline_time", sessionData);
-    await sendMessage(env, chatId, `ساعت ددلاین ${date} را بفرست (مثلاً 18:30):`);
+    await sendMessage(env, chatId, `Enter deadline time for ${date} (for example 18:30):`);
     return;
   }
   if (data.startsWith("new:day:")) {
@@ -409,7 +410,7 @@ async function showTasks(env: Env, chatId: number, userId: number, todayOnly: bo
 
 async function startHabitCreation(env: Env, chatId: number, userId: number): Promise<void> {
   await setSession(env.DB, userId, "await_habit_title", {});
-  await sendMessage(env, chatId, "نام عادت روزانه را بفرست (مثلاً: مطالعه ۲۰ دقیقه):");
+  await sendMessage(env, chatId, (await getLanguage(env.DB, userId)) === "en" ? "Send the daily habit name (for example: Read 20 minutes):" : "نام عادت روزانه را بفرست (مثلاً: مطالعه ۲۰ دقیقه):");
 }
 
 async function showStats(env: Env, chatId: number, userId: number): Promise<void> {
