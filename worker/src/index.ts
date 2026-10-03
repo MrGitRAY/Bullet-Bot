@@ -366,13 +366,21 @@ async function showStats(env: Env, chatId: number, userId: number): Promise<void
   const doneToday = await env.DB.prepare(
     "SELECT COUNT(*) AS count FROM task_completions WHERE user_id = ? AND occurrence_date = ?",
   ).bind(userId, today).first<{ count: number }>();
+  const weeklyDone = await env.DB.prepare(
+    `SELECT occurrence_date AS date, COUNT(*) AS count
+       FROM task_completions WHERE user_id = ? AND occurrence_date >= date('now', '-6 day')
+      GROUP BY occurrence_date ORDER BY occurrence_date`,
+  ).bind(userId).all<{ date: string; count: number }>();
+  const chart = weeklyDone.results.length
+    ? weeklyDone.results.map((item) => `${item.date.slice(5)} ${"█".repeat(Math.min(item.count, 12))} ${item.count}`).join("\n")
+    : "برای این هفته هنوز تکمیلی ثبت نشده است.";
   await sendMessage(env, chatId,
     `📊 آمار تسک‌ها\n\n` +
     `کل تسک‌ها: ${row.total}\n` +
     `تکمیل‌شده: ${row.completed}\n` +
     `یک‌باره باز: ${row.one_time}\n` +
     `تکرارشونده: ${row.weekly}\n` +
-    `تکرارشونده انجام‌شده امروز: ${doneToday?.count ?? 0}`,
+    `تکرارشونده انجام‌شده امروز: ${doneToday?.count ?? 0}\n\nنمودار تکمیل ۷ روز اخیر:\n${chart}`,
     MENU);
 }
 
