@@ -44,9 +44,9 @@ const BOTTOM_MENU: ReplyMarkup = { keyboard: [[{ text: "📒 برنامه امر
 const BOTTOM_MENU_EN: ReplyMarkup = { keyboard: [[{ text: "📒 Today's Plan" }, { text: "📅 Weekly Plan" }], [{ text: "➕ New task" }, { text: "📋 All tasks" }], [{ text: "➕ New habit" }, { text: "🌱 All habits" }], [{ text: "📊 Reports" }, { text: "🏆 Leaderboard" }], [{ text: "Help" }, { text: "⚙️ Settings" }]], resize_keyboard: true };
 
 const PRIORITIES: Record<string, string> = {
-  low: "🟢 کم",
-  medium: "🟡 متوسط",
-  high: "🔴 زیاد",
+  low: "🟢",
+  medium: "🟡",
+  high: "🔴",
 };
 
 const WEEKDAYS = [
@@ -563,7 +563,7 @@ async function showDailyPlan(env: Env, chatId: number, userId: number): Promise<
   const habits = await env.DB.prepare("SELECT id, title FROM habits WHERE user_id = ? AND active = 1").bind(userId).all<{ id: number; title: string }>();
   await sendMessage(env, chatId, en ? "📒 <b>Today's Plan</b>\n\n📋 <b>Tasks</b>" : "📒 <b>برنامه امروز</b>\n\n📋 <b>تسک‌ها</b>");
   if (!tasks.results.length) await sendMessage(env, chatId, en ? "No tasks for today." : "امروز تسکی نداری.");
-  for (const task of tasks.results) await sendMessage(env, chatId, `⬜ ${escapeHtml(task.title)}${task.deadline ? `\n${en ? "Deadline" : "ددلاین"}: ${task.deadline}` : ""}`, { inline_keyboard: [[{ text: en ? "✅ Complete" : "✅ انجام شد", callback_data: `task:complete:${task.id}` }, { text: en ? "⏭️ Skip" : "⏭️ انجام نشد", callback_data: `task:skip:${task.id}` }]] });
+  for (const task of tasks.results) await sendMessage(env, chatId, `${PRIORITIES[task.priority]} ${escapeHtml(task.title)}${task.deadline ? `\n${en ? "Deadline" : "ددلاین"}: ${task.deadline}` : ""}`, { inline_keyboard: [[{ text: en ? "✅ Complete" : "✅ انجام شد", callback_data: `task:complete:${task.id}` }, { text: en ? "⏭️ Skip" : "⏭️ انجام نشد", callback_data: `task:skip:${task.id}` }]] });
   await sendMessage(env, chatId, en ? "🌱 <b>Habits</b>" : "🌱 <b>عادت‌ها</b>");
   for (const habit of habits.results) {
     const done = await env.DB.prepare("SELECT 1 FROM habit_completions WHERE habit_id = ? AND occurrence_date = ?").bind(habit.id, today).first();
