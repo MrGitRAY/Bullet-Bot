@@ -533,19 +533,23 @@ async function showTasks(env: Env, chatId: number, userId: number, todayOnly: bo
   }
   await sendMessage(env, chatId, todayOnly ? (en ? "📋 Today's tasks:" : "📋 تسک‌های امروز:") : (en ? "🗂 Open tasks:" : "🗂 تسک‌های باز:"));
   for (const task of tasks) {
+    const scheduledToday = task.kind === "one_time" || parseWeekdays(task.weekdays).includes(weekday);
     const schedule = task.kind === "one_time"
       ? `${en ? "Deadline" : "ددلاین"}: ${task.deadline ?? "-"}`
       : `${en ? "Days" : "روزها"}: ${formatWeekdays(parseWeekdays(task.weekdays))}`;
+    const actions: InlineButton[] = scheduledToday
+      ? [
+          { text: en ? "✅ Done" : "✅ انجام شد", callback_data: `task:complete:${task.id}` },
+          { text: en ? "⏭️ Skipped" : "⏭️ انجام نشد", callback_data: `task:skip:${task.id}` },
+          { text: en ? "🗑 Delete" : "🗑 حذف", callback_data: `task:delete:${task.id}` },
+        ]
+      : [{ text: en ? "🗑 Delete" : "🗑 حذف", callback_data: `task:delete:${task.id}` }];
     await sendMessage(
       env,
       chatId,
       `${PRIORITIES[task.priority]}  ${escapeHtml(task.title)}\n${schedule}`,
       {
-        inline_keyboard: [[
-          { text: en ? "✅ Done" : "✅ انجام شد", callback_data: `task:complete:${task.id}` },
-          { text: en ? "⏭️ Skipped" : "⏭️ انجام نشد", callback_data: `task:skip:${task.id}` },
-          { text: en ? "🗑 Delete" : "🗑 حذف", callback_data: `task:delete:${task.id}` },
-        ]],
+        inline_keyboard: [actions],
       },
     );
   }
