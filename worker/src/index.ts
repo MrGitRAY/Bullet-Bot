@@ -33,11 +33,11 @@ type ReplyMarkup = {
 };
 
 const MENU = {
-  inline_keyboard: [[{ text: "🔴➕ تسک جدید", callback_data: "menu:task" }, { text: "🟢➕ عادت جدید", callback_data: "menu:habit" }], [{ text: "📋 تسک‌های امروز", callback_data: "menu:today" }, { text: "📋 عادت‌ها", callback_data: "menu:habits" }], [{ text: "🗂 همه تسک‌ها", callback_data: "menu:all" }, { text: "📅 برنامه هفتگی", callback_data: "menu:week" }], [{ text: "📊 آمار", callback_data: "menu:stats" }, { text: "🏆 لیدربرد", callback_data: "menu:leaderboard" }], [{ text: "راهنما", callback_data: "menu:help" }, { text: "✏️ تغییر نام", callback_data: "menu:name" }], [{ text: "🌐 تغییر زبان", callback_data: "menu:language" }]],
+  inline_keyboard: [[{ text: "🔴➕ تسک جدید", callback_data: "menu:task" }, { text: "🟢➕ عادت جدید", callback_data: "menu:habit" }], [{ text: "📋 تسک‌های امروز", callback_data: "menu:today" }, { text: "📋 عادت‌ها", callback_data: "menu:habits" }], [{ text: "🗂 همه تسک‌ها", callback_data: "menu:all" }, { text: "📅 برنامه هفتگی", callback_data: "menu:week" }], [{ text: "📊 آمار", callback_data: "menu:stats" }, { text: "🏆 لیدربرد", callback_data: "menu:leaderboard" }], [{ text: "✏️ تغییر نام", callback_data: "menu:name" }, { text: "🌐 تغییر زبان", callback_data: "menu:language" }], [{ text: "راهنما\nراهنمای ربات", callback_data: "menu:help" }]],
 } satisfies ReplyMarkup;
 
 const MENU_EN: ReplyMarkup = {
-  inline_keyboard: [[{ text: "🔴➕ New task", callback_data: "menu:task" }, { text: "🟢➕ New habit", callback_data: "menu:habit" }], [{ text: "📋 Today's tasks", callback_data: "menu:today" }, { text: "📋 Habits", callback_data: "menu:habits" }], [{ text: "🗂 All tasks", callback_data: "menu:all" }, { text: "📅 Weekly plan", callback_data: "menu:week" }], [{ text: "📊 Statistics", callback_data: "menu:stats" }, { text: "🏆 Leaderboard", callback_data: "menu:leaderboard" }], [{ text: "Help", callback_data: "menu:help" }, { text: "✏️ Change name", callback_data: "menu:name" }], [{ text: "🌐 English", callback_data: "menu:language" }]],
+  inline_keyboard: [[{ text: "🔴➕ New task", callback_data: "menu:task" }, { text: "🟢➕ New habit", callback_data: "menu:habit" }], [{ text: "📋 Today's tasks", callback_data: "menu:today" }, { text: "📋 Habits", callback_data: "menu:habits" }], [{ text: "🗂 All tasks", callback_data: "menu:all" }, { text: "📅 Weekly plan", callback_data: "menu:week" }], [{ text: "📊 Statistics", callback_data: "menu:stats" }, { text: "🏆 Leaderboard", callback_data: "menu:leaderboard" }], [{ text: "✏️ Change name", callback_data: "menu:name" }, { text: "🌐 English", callback_data: "menu:language" }], [{ text: "Help\nBot guide", callback_data: "menu:help" }]],
 };
 
 const PRIORITIES: Record<string, string> = {
