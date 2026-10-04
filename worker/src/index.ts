@@ -33,11 +33,11 @@ type ReplyMarkup = {
 };
 
 const MENU = {
-  inline_keyboard: [[{ text: "📒 برنامه امروز", callback_data: "menu:today" }, { text: "📅 برنامه هفتگی", callback_data: "menu:week" }], [{ text: "➕ تسک جدید", callback_data: "menu:task" }, { text: "📋 همه تسک‌ها", callback_data: "menu:all" }], [{ text: "➕ عادت جدید", callback_data: "menu:habit" }, { text: "🌱 همه عادت‌ها", callback_data: "menu:habits" }], [{ text: "📊 گزارش‌ها", callback_data: "menu:stats" }, { text: "⚙️ تنظیمات", callback_data: "menu:settings" }]],
+  inline_keyboard: [[{ text: "📒 برنامه امروز", callback_data: "menu:today" }, { text: "📅 برنامه هفتگی", callback_data: "menu:week" }], [{ text: "➕ تسک جدید", callback_data: "menu:task" }, { text: "📋 همه تسک‌ها", callback_data: "menu:all" }], [{ text: "➕ عادت جدید", callback_data: "menu:habit" }, { text: "🌱 همه عادت‌ها", callback_data: "menu:habits" }], [{ text: "📊 آمار", callback_data: "menu:stats" }, { text: "🏆 لیدربرد", callback_data: "menu:leaderboard" }], [{ text: "راهنما", callback_data: "menu:help" }, { text: "⚙️ تنظیمات", callback_data: "menu:settings" }]],
 } satisfies ReplyMarkup;
 
 const MENU_EN: ReplyMarkup = {
-  inline_keyboard: [[{ text: "📒 Today's Plan", callback_data: "menu:today" }, { text: "📅 Weekly Plan", callback_data: "menu:week" }], [{ text: "➕ New task", callback_data: "menu:task" }, { text: "📋 All tasks", callback_data: "menu:all" }], [{ text: "➕ New habit", callback_data: "menu:habit" }, { text: "🌱 All habits", callback_data: "menu:habits" }], [{ text: "📊 Reports", callback_data: "menu:stats" }, { text: "⚙️ Settings", callback_data: "menu:settings" }]],
+  inline_keyboard: [[{ text: "📒 Today's Plan", callback_data: "menu:today" }, { text: "📅 Weekly Plan", callback_data: "menu:week" }], [{ text: "➕ New task", callback_data: "menu:task" }, { text: "📋 All tasks", callback_data: "menu:all" }], [{ text: "➕ New habit", callback_data: "menu:habit" }, { text: "🌱 All habits", callback_data: "menu:habits" }], [{ text: "📊 Reports", callback_data: "menu:stats" }, { text: "🏆 Leaderboard", callback_data: "menu:leaderboard" }], [{ text: "Help", callback_data: "menu:help" }, { text: "⚙️ Settings", callback_data: "menu:settings" }]],
 };
 
 const PRIORITIES: Record<string, string> = {
