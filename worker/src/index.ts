@@ -40,6 +40,9 @@ const MENU_EN: ReplyMarkup = {
   inline_keyboard: [[{ text: "📒 Today's Plan", callback_data: "menu:today" }, { text: "📅 Weekly Plan", callback_data: "menu:week" }], [{ text: "➕ New task", callback_data: "menu:task" }, { text: "📋 All tasks", callback_data: "menu:all" }], [{ text: "➕ New habit", callback_data: "menu:habit" }, { text: "🌱 All habits", callback_data: "menu:habits" }], [{ text: "📊 Reports", callback_data: "menu:stats" }, { text: "🏆 Leaderboard", callback_data: "menu:leaderboard" }], [{ text: "Help", callback_data: "menu:help" }, { text: "⚙️ Settings", callback_data: "menu:settings" }]],
 };
 
+const BOTTOM_MENU: ReplyMarkup = { keyboard: [[{ text: "📒 برنامه امروز" }, { text: "📅 برنامه هفتگی" }], [{ text: "➕ تسک جدید" }, { text: "📋 همه تسک‌ها" }], [{ text: "➕ عادت جدید" }, { text: "🌱 همه عادت‌ها" }], [{ text: "📊 آمار" }, { text: "🏆 لیدربرد" }], [{ text: "راهنما" }, { text: "⚙️ تنظیمات" }]], resize_keyboard: true };
+const BOTTOM_MENU_EN: ReplyMarkup = { keyboard: [[{ text: "📒 Today's Plan" }, { text: "📅 Weekly Plan" }], [{ text: "➕ New task" }, { text: "📋 All tasks" }], [{ text: "➕ New habit" }, { text: "🌱 All habits" }], [{ text: "📊 Reports" }, { text: "🏆 Leaderboard" }], [{ text: "Help" }, { text: "⚙️ Settings" }]], resize_keyboard: true };
+
 const PRIORITIES: Record<string, string> = {
   low: "🟢 کم",
   medium: "🟡 متوسط",
@@ -109,6 +112,7 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
       return;
     }
     await sendMessage(env, message.chat.id, language === "en" ? "Welcome to Bullet Journal. Choose an option:" : "به Bullet Journal خوش آمدی. از منوی زیر شروع کن:", language === "en" ? MENU_EN : MENU);
+    await sendMessage(env, message.chat.id, language === "en" ? "Quick menu:" : "منوی سریع:", language === "en" ? BOTTOM_MENU_EN : BOTTOM_MENU);
     return;
   }
   if (["/name", "✏️ تغییر نام", "✏️ Change name"].includes(text)) {
@@ -140,15 +144,17 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
     await showTasks(env, message.chat.id, userId, true);
     return;
   }
-  if (["🗂 همه تسک‌ها", "🗂 All tasks", "/tasks"].includes(text)) {
+  if (["📋 همه تسک‌ها", "🗂 همه تسک‌ها", "🗂 All tasks", "/tasks"].includes(text)) {
     await showTasks(env, message.chat.id, userId, false);
     return;
   }
-  if (["📊 آمار", "📊 Statistics", "/stats"].includes(text)) {
+  if (["🌱 همه عادت‌ها", "🌱 All habits"].includes(text)) { await showHabits(env, message.chat.id, userId); return; }
+  if (["⚙️ تنظیمات", "⚙️ Settings"].includes(text)) { await sendMessage(env, message.chat.id, "⚙️ تنظیمات / Settings\n\n✏️ /name\n🌐 تغییر زبان / Change language"); return; }
+  if (["📊 آمار", "📊 Reports", "📊 Statistics", "/stats"].includes(text)) {
     await showStats(env, message.chat.id, userId);
     return;
   }
-  if (["✅ عادت جدید", "🟢➕ عادت جدید", "✅ New habit", "🟢➕ New habit", "/habit"].includes(text)) {
+  if (["➕ عادت جدید", "➕ New habit", "✅ عادت جدید", "🟢➕ عادت جدید", "✅ New habit", "🟢➕ New habit", "/habit"].includes(text)) {
     await startHabitCreation(env, message.chat.id, userId);
     return;
   }
@@ -257,7 +263,10 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     }
     else if (action === "name") { await setSession(env.DB, userId, "await_display_name", {}); await sendMessage(env, chatId, "نام نمایشی جدیدت را بفرست:"); }
     else if (action === "language") await sendMessage(env, chatId, "زبان / Language:", { inline_keyboard: [[{ text: "English", callback_data: "lang:en" }, { text: "فارسی", callback_data: "lang:fa" }]] });
-    else if (action === "help") await sendMessage(env, chatId, "راهنما در پیام /help قابل مشاهده است.");
+    else if (action === "help") {
+      const en = (await getLanguage(env.DB, userId)) === "en";
+      await sendMessage(env, chatId, en ? "<b>Help</b>\n\n📒 Today's Plan — execute today's tasks and habits\n📅 Weekly Plan — view the weekly schedule\n➕ New task — create a task\n📋 All tasks — manage open tasks\n➕ New habit — create a daily habit\n🌱 All habits — manage habits\n📊 Reports — view progress\n🏆 Leaderboard — view XP ranking\n⚙️ Settings — name and language\n\n────────────\n\n<b>XP</b>\nHigh: 6 XP · Medium: 4 XP · Low: 2 XP\nHabit chain: 1, 2, 3, 4, then 5 XP daily\nMiss penalties: -3, -2, then -1 XP" : "<b>راهنما</b>\n\n📒 برنامه امروز — اجرای تسک‌ها و عادت‌های امروز\n📅 برنامه هفتگی — نمایش برنامه هفته\n➕ تسک جدید — ساخت تسک\n📋 همه تسک‌ها — مدیریت تسک‌های باز\n➕ عادت جدید — ساخت عادت روزانه\n🌱 همه عادت‌ها — مدیریت عادت‌ها\n📊 گزارش‌ها — مشاهده پیشرفت\n🏆 لیدربرد — رتبه‌بندی XP\n⚙️ تنظیمات — نام و زبان\n\n────────────\n\n<b>امتیاز</b>\nتسک مهم: ۶ · متوسط: ۴ · کم: ۲ XP\nزنجیره عادت: ۱، ۲، ۳، ۴ و سپس روزی ۵ XP\nجریمه miss: ۳-، ۲- و سپس ۱- XP");
+    }
     return;
   }
 
@@ -265,6 +274,7 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     const language = data.slice(5) === "en" ? "en" : "fa";
     await env.DB.prepare("UPDATE users SET language = ? WHERE id = ?").bind(language, userId).run();
     await sendMessage(env, chatId, language === "en" ? "✅ Language changed to English." : "✅ زبان به فارسی تغییر کرد.");
+    await sendMessage(env, chatId, language === "en" ? "Quick menu:" : "منوی سریع:", language === "en" ? BOTTOM_MENU_EN : BOTTOM_MENU);
     return;
   }
 
