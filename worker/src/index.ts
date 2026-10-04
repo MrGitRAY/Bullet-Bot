@@ -251,7 +251,10 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     else if (action === "week") await showWeeklyPlan(env, chatId, userId);
     else if (action === "stats") await showStats(env, chatId, userId);
     else if (action === "leaderboard") await showLeaderboard(env, chatId, userId);
-    else if (action === "settings") await sendMessage(env, chatId, "⚙️ تنظیمات / Settings\n\n✏️ Change name\n🌐 Change language");
+    else if (action === "settings") {
+      const en = (await getLanguage(env.DB, userId)) === "en";
+      await sendMessage(env, chatId, en ? "⚙️ <b>Settings</b>" : "⚙️ <b>تنظیمات</b>", { inline_keyboard: [[{ text: en ? "✏️ Change name" : "✏️ تغییر نام", callback_data: "menu:name" }], [{ text: en ? "🌐 Change language" : "🌐 تغییر زبان", callback_data: "menu:language" }]] });
+    }
     else if (action === "name") { await setSession(env.DB, userId, "await_display_name", {}); await sendMessage(env, chatId, "نام نمایشی جدیدت را بفرست:"); }
     else if (action === "language") await sendMessage(env, chatId, "زبان / Language:", { inline_keyboard: [[{ text: "English", callback_data: "lang:en" }, { text: "فارسی", callback_data: "lang:fa" }]] });
     else if (action === "help") await sendMessage(env, chatId, "راهنما در پیام /help قابل مشاهده است.");
@@ -542,7 +545,7 @@ async function showDailyPlan(env: Env, chatId: number, userId: number): Promise<
   const habits = await env.DB.prepare("SELECT id, title FROM habits WHERE user_id = ? AND active = 1").bind(userId).all<{ id: number; title: string }>();
   await sendMessage(env, chatId, en ? "📒 <b>Today's Plan</b>\n\n📋 <b>Tasks</b>" : "📒 <b>برنامه امروز</b>\n\n📋 <b>تسک‌ها</b>");
   if (!tasks.results.length) await sendMessage(env, chatId, en ? "No tasks for today." : "امروز تسکی نداری.");
-  for (const task of tasks.results) await sendMessage(env, chatId, `⬜ ${escapeHtml(task.title)}${task.deadline ? `\n${en ? "Deadline" : "ددلاین"}: ${task.deadline}` : ""}`, { inline_keyboard: [[{ text: en ? "✅ Complete" : "✅ انجام شد", callback_data: `task:complete:${task.id}` }]] });
+  for (const task of tasks.results) await sendMessage(env, chatId, `⬜ ${escapeHtml(task.title)}${task.deadline ? `\n${en ? "Deadline" : "ددلاین"}: ${task.deadline}` : ""}`, { inline_keyboard: [[{ text: en ? "✅ Complete" : "✅ انجام شد", callback_data: `task:complete:${task.id}` }, { text: en ? "⏭️ Skip" : "⏭️ انجام نشد", callback_data: `task:skip:${task.id}` }]] });
   await sendMessage(env, chatId, en ? "🌱 <b>Habits</b>" : "🌱 <b>عادت‌ها</b>");
   for (const habit of habits.results) {
     const done = await env.DB.prepare("SELECT 1 FROM habit_completions WHERE habit_id = ? AND occurrence_date = ?").bind(habit.id, today).first();
