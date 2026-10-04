@@ -33,11 +33,11 @@ type ReplyMarkup = {
 };
 
 const MENU = {
-  inline_keyboard: [[{ text: "🔴➕ تسک جدید", callback_data: "menu:task" }, { text: "🟢➕ عادت جدید", callback_data: "menu:habit" }], [{ text: "📋 تسک‌های امروز", callback_data: "menu:today" }, { text: "📋 عادت‌ها", callback_data: "menu:habits" }], [{ text: "🗂 همه تسک‌ها", callback_data: "menu:all" }, { text: "📅 برنامه هفتگی", callback_data: "menu:week" }], [{ text: "📊 آمار", callback_data: "menu:stats" }, { text: "🏆 لیدربرد", callback_data: "menu:leaderboard" }], [{ text: "راهنما\nراهنمای ربات", callback_data: "menu:help" }, { text: "✏️ تغییر نام", callback_data: "menu:name" }], [{ text: "🌐 تغییر زبان", callback_data: "menu:language" }]],
+  inline_keyboard: [[{ text: "📒 برنامه امروز", callback_data: "menu:today" }, { text: "📅 برنامه هفتگی", callback_data: "menu:week" }], [{ text: "➕ تسک جدید", callback_data: "menu:task" }, { text: "📋 همه تسک‌ها", callback_data: "menu:all" }], [{ text: "➕ عادت جدید", callback_data: "menu:habit" }, { text: "🌱 همه عادت‌ها", callback_data: "menu:habits" }], [{ text: "📊 گزارش‌ها", callback_data: "menu:stats" }, { text: "⚙️ تنظیمات", callback_data: "menu:settings" }]],
 } satisfies ReplyMarkup;
 
 const MENU_EN: ReplyMarkup = {
-  inline_keyboard: [[{ text: "🔴➕ New task", callback_data: "menu:task" }, { text: "🟢➕ New habit", callback_data: "menu:habit" }], [{ text: "📋 Today's tasks", callback_data: "menu:today" }, { text: "📋 Habits", callback_data: "menu:habits" }], [{ text: "🗂 All tasks", callback_data: "menu:all" }, { text: "📅 Weekly plan", callback_data: "menu:week" }], [{ text: "📊 Statistics", callback_data: "menu:stats" }, { text: "🏆 Leaderboard", callback_data: "menu:leaderboard" }], [{ text: "Help\nBot guide", callback_data: "menu:help" }, { text: "✏️ Change name", callback_data: "menu:name" }], [{ text: "🌐 English", callback_data: "menu:language" }]],
+  inline_keyboard: [[{ text: "📒 Today's Plan", callback_data: "menu:today" }, { text: "📅 Weekly Plan", callback_data: "menu:week" }], [{ text: "➕ New task", callback_data: "menu:task" }, { text: "📋 All tasks", callback_data: "menu:all" }], [{ text: "➕ New habit", callback_data: "menu:habit" }, { text: "🌱 All habits", callback_data: "menu:habits" }], [{ text: "📊 Reports", callback_data: "menu:stats" }, { text: "⚙️ Settings", callback_data: "menu:settings" }]],
 };
 
 const PRIORITIES: Record<string, string> = {
@@ -118,8 +118,8 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
   }
   if (["/help", "راهنما", "Help"].includes(text)) {
     const help = language === "en"
-      ? "<b>Menu guide</b>\n\n🔴➕ New task — create a task\n🟢➕ New habit — create a daily habit\n📋 Today's tasks — today's open tasks\n📋 Habits — habits and current streaks\n🗂 All tasks — all open tasks\n📅 Weekly plan — weekly schedule\n📊 Statistics — tasks, habits and chart\n🏆 Leaderboard — XP ranking\n✏️ Change name — edit your display name\n🌐 English — change language\n\n────────────\n\n<b>XP rules</b>\n• High priority task: 10 XP\n• Medium priority task: 7 XP\n• Low priority task: 4 XP\n• A task without a deadline gives no XP\n• Skipping a deadline or recurring task deducts half its reward\n• Habit chain rewards: 1, 2, 3, 4, then 5 XP per day\n• Breaking a habit chain deducts 2 XP\n• Repeating the same action on the same day gives XP once"
-      : "<b>راهنمای منو</b>\n\n🔴➕ تسک جدید — ساخت تسک\n🟢➕ عادت جدید — ساخت عادت روزانه\n📋 تسک‌های امروز — تسک‌های باز امروز\n📋 عادت‌ها — عادت‌ها و زنجیره فعلی\n🗂 همه تسک‌ها — همه تسک‌های باز\n📅 برنامه هفتگی — برنامه هفته\n📊 آمار — آمار تسک، عادت و نمودار\n🏆 لیدربرد — رتبه‌بندی XP\n✏️ تغییر نام — ویرایش نام نمایشی\n🌐 تغییر زبان — تغییر زبان ربات\n\n────────────\n\n<b>قوانین امتیازدهی</b>\n• تسک مهم: ۱۰ XP\n• تسک متوسط: ۷ XP\n• تسک کم‌اهمیت: ۴ XP\n• تسک بدون ددلاین XP ندارد\n• انجام ندادن تسک ددلاین‌دار یا تکرارشونده، نصف پاداش آن را کم می‌کند\n• پاداش زنجیره عادت: روز اول ۱، روز دوم ۲، روز سوم ۳، روز چهارم ۴ و از روز پنجم به بعد روزی ۵ XP\n• قطع زنجیره عادت: ۲ XP منفی\n• انجام دوباره یک مورد در همان روز XP اضافه نمی‌دهد";
+      ? "<b>Menu guide</b>\n\n➕ New task — create a task\n➕ New habit — create a daily habit\n📋 Today's tasks — today's open tasks\n📋 Habits — habits and current streaks\n🗂 All tasks — all open tasks\n📅 Weekly plan — weekly schedule\n📊 Statistics — tasks, habits and chart\n🏆 Leaderboard — XP ranking\n✏️ Change name — edit your display name\n🌐 English — change language\n\n────────────\n\n<b>XP rules</b>\n• High priority task: 10 XP\n• Medium priority task: 7 XP\n• Low priority task: 4 XP\n• A task without a deadline gives no XP\n• Skipping a deadline or recurring task deducts half its reward\n• Habit chain rewards: 1, 2, 3, 4, then 5 XP per day\n• Breaking a habit chain deducts 2 XP\n• Repeating the same action on the same day gives XP once"
+      : "<b>راهنمای منو</b>\n\n➕ تسک جدید — ساخت تسک\n➕ عادت جدید — ساخت عادت روزانه\n📋 تسک‌های امروز — تسک‌های باز امروز\n📋 عادت‌ها — عادت‌ها و زنجیره فعلی\n🗂 همه تسک‌ها — همه تسک‌های باز\n📅 برنامه هفتگی — برنامه هفته\n📊 آمار — آمار تسک، عادت و نمودار\n🏆 لیدربرد — رتبه‌بندی XP\n✏️ تغییر نام — ویرایش نام نمایشی\n🌐 تغییر زبان — تغییر زبان ربات\n\n────────────\n\n<b>قوانین امتیازدهی</b>\n• تسک مهم: ۱۰ XP\n• تسک متوسط: ۷ XP\n• تسک کم‌اهمیت: ۴ XP\n• تسک بدون ددلاین XP ندارد\n• انجام ندادن تسک ددلاین‌دار یا تکرارشونده، نصف پاداش آن را کم می‌کند\n• پاداش زنجیره عادت: روز اول ۱، روز دوم ۲، روز سوم ۳، روز چهارم ۴ و از روز پنجم به بعد روزی ۵ XP\n• قطع زنجیره عادت: ۲ XP منفی\n• انجام دوباره یک مورد در همان روز XP اضافه نمی‌دهد";
     await sendMessage(env, message.chat.id, help);
     return;
   }
@@ -136,7 +136,7 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
     await showTaskType(env, message.chat.id, userId);
     return;
   }
-  if (["📋 تسک‌های امروز", "📋 Today's tasks", "/today"].includes(text)) {
+  if (["📒 برنامه امروز", "📒 Today's Plan", "📋 تسک‌های امروز", "📋 Today's tasks", "/today"].includes(text)) {
     await showTasks(env, message.chat.id, userId, true);
     return;
   }
@@ -245,12 +245,13 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     const action = data.slice(5);
     if (action === "task") await showTaskType(env, chatId, userId);
     else if (action === "habit") await startHabitCreation(env, chatId, userId);
-    else if (action === "today") await showTasks(env, chatId, userId, true);
+    else if (action === "today") await showDailyPlan(env, chatId, userId);
     else if (action === "all") await showTasks(env, chatId, userId, false);
     else if (action === "habits") await showHabits(env, chatId, userId);
     else if (action === "week") await showWeeklyPlan(env, chatId, userId);
     else if (action === "stats") await showStats(env, chatId, userId);
     else if (action === "leaderboard") await showLeaderboard(env, chatId, userId);
+    else if (action === "settings") await sendMessage(env, chatId, "⚙️ تنظیمات / Settings\n\n✏️ Change name\n🌐 Change language");
     else if (action === "name") { await setSession(env.DB, userId, "await_display_name", {}); await sendMessage(env, chatId, "نام نمایشی جدیدت را بفرست:"); }
     else if (action === "language") await sendMessage(env, chatId, "زبان / Language:", { inline_keyboard: [[{ text: "English", callback_data: "lang:en" }, { text: "فارسی", callback_data: "lang:fa" }]] });
     else if (action === "help") await sendMessage(env, chatId, "راهنما در پیام /help قابل مشاهده است.");
@@ -301,7 +302,7 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     await createTask(env.DB, userId, JSON.parse(session.data) as SessionData, null);
     await clearSession(env.DB, userId);
     const en = (await getLanguage(env.DB, userId)) === "en";
-      await sendMessage(env, chatId, en ? "✅ One-time task saved without a deadline." : "✅ تسک یک‌باره بدون ددلاین ذخیره شد.");
+    await sendMessage(env, chatId, en ? "✅ One-time task saved without a deadline." : "✅ تسک یک‌باره بدون ددلاین ذخیره شد.");
     return;
   }
   if (data.startsWith("new:quick:")) {
@@ -400,6 +401,12 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     await sendMessage(env, chatId, "✅ عادت ذخیره شد.");
     return;
   }
+  if (data.startsWith("habit:delete:")) {
+    const habitId = Number(data.split(":")[2]);
+    await env.DB.prepare("UPDATE habits SET active = 0 WHERE id = ? AND user_id = ?").bind(habitId, userId).run();
+    await sendMessage(env, chatId, "🗑 عادت حذف شد.");
+    return;
+  }
   if (data.startsWith("habit:complete:")) {
     const habitId = Number(data.split(":")[2]);
     const previousStreak = await habitStreak(env.DB, habitId, tehranDate());
@@ -416,6 +423,31 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     await sendMessage(env, chatId, "⏭️ عادت امروز انجام‌نشده ثبت شد.");
     return;
   }
+  // if (data.startsWith("habit:delete:")) {
+  //   const habitId = Number(data.split(":")[2]);
+  //   await env.DB.prepare(
+  //     `
+  //     UPDATE habits
+  //     SET active = 0
+  //     WHERE id = ?
+  //       AND user_id = ?
+  //     `
+  //   )
+  //     .bind(habitId, userId)
+  //     .run()
+
+  //   await answerCallbackQuery(
+  //     env,
+  //     callbackId,
+  //     "Habit deleted"
+  //   );  
+  //   await sendMessage(
+  //     env,
+  //     chatId,
+  //     "🗑 عادت حذف شد."
+  //   );
+  //   return;
+  // }
   if (data.startsWith("task:complete:")) {
     const taskId = Number(data.split(":")[2]);
     await completeTask(env.DB, userId, taskId, tehranDate());
@@ -430,7 +462,10 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
       "INSERT INTO task_skips (task_id, user_id, occurrence_date) SELECT id, user_id, ? FROM tasks WHERE id = ? AND user_id = ? AND completed = 0 ON CONFLICT(task_id, occurrence_date) DO NOTHING",
     ).bind(tehranDate(), taskId, userId).run();
     if (task && skipped.meta.changes > 0 && (task.kind === "weekly" || task.deadline !== null)) {
-      await env.DB.prepare("UPDATE users SET xp = MAX(0, xp - ?) WHERE id = ?").bind(taskXp(task.priority) / 2, userId).run();
+      const user = await env.DB.prepare("SELECT consecutive_task_misses FROM users WHERE id = ?").bind(userId).first<{ consecutive_task_misses: number }>();
+      const misses = (user?.consecutive_task_misses ?? 0) + 1;
+      const penalty = misses === 1 ? 3 : misses === 2 ? 2 : 1;
+      await env.DB.prepare("UPDATE users SET xp = MAX(0, xp - ?), consecutive_task_misses = ? WHERE id = ?").bind(penalty, misses, userId).run();
     }
     await sendMessage(env, chatId, "⏭️ برای امروز انجام‌نشده ثبت شد.");
     return;
@@ -476,7 +511,7 @@ async function showTasks(env: Env, chatId: number, userId: number, todayOnly: bo
     ? result.results.filter((task) => task.kind === "one_time" || parseWeekdays(task.weekdays).includes(weekday))
     : result.results;
   if (!tasks.length) {
-    await sendMessage(env, chatId, todayOnly ? (en ? "You have no open tasks for today. ✨" : "برای امروز تسک بازی نداری. ✨") : (en ? "You have no open tasks. ✨" : "تسک بازی وجود ندارد. ✨"));
+    await sendMessage(env, chatId, todayOnly ? (en ? "You have no open tasks for today. ✨" : "برای امروز تسکی نداری. ✨") : (en ? "You have no open tasks. ✨" : "تسکی وجود ندارد. ✨"));
     return;
   }
   await sendMessage(env, chatId, todayOnly ? (en ? "📋 Today's tasks:" : "📋 تسک‌های امروز:") : (en ? "🗂 Open tasks:" : "🗂 تسک‌های باز:"));
@@ -496,6 +531,22 @@ async function showTasks(env: Env, chatId: number, userId: number, todayOnly: bo
         ]],
       },
     );
+  }
+}
+
+async function showDailyPlan(env: Env, chatId: number, userId: number): Promise<void> {
+  const en = (await getLanguage(env.DB, userId)) === "en";
+  const today = tehranDate();
+  const weekday = tehranWeekday();
+  const tasks = await env.DB.prepare(`SELECT id, title, priority, kind, deadline, weekdays, completed FROM tasks WHERE user_id = ? AND completed = 0 AND (kind = 'one_time' OR (kind = 'weekly' AND EXISTS (SELECT 1 FROM json_each(tasks.weekdays) WHERE value = ?))) AND NOT EXISTS (SELECT 1 FROM task_completions WHERE task_id = tasks.id AND occurrence_date = ?) AND NOT EXISTS (SELECT 1 FROM task_skips WHERE task_id = tasks.id AND occurrence_date = ?) ORDER BY deadline IS NULL, deadline, id LIMIT 30`).bind(userId, weekday, today, today).all<TaskRow>();
+  const habits = await env.DB.prepare("SELECT id, title FROM habits WHERE user_id = ? AND active = 1").bind(userId).all<{ id: number; title: string }>();
+  await sendMessage(env, chatId, en ? "📒 <b>Today's Plan</b>\n\n📋 <b>Tasks</b>" : "📒 <b>برنامه امروز</b>\n\n📋 <b>تسک‌ها</b>");
+  if (!tasks.results.length) await sendMessage(env, chatId, en ? "No tasks for today." : "امروز تسکی نداری.");
+  for (const task of tasks.results) await sendMessage(env, chatId, `⬜ ${escapeHtml(task.title)}${task.deadline ? `\n${en ? "Deadline" : "ددلاین"}: ${task.deadline}` : ""}`, { inline_keyboard: [[{ text: en ? "✅ Complete" : "✅ انجام شد", callback_data: `task:complete:${task.id}` }]] });
+  await sendMessage(env, chatId, en ? "🌱 <b>Habits</b>" : "🌱 <b>عادت‌ها</b>");
+  for (const habit of habits.results) {
+    const done = await env.DB.prepare("SELECT 1 FROM habit_completions WHERE habit_id = ? AND occurrence_date = ?").bind(habit.id, today).first();
+    if (!done) await sendMessage(env, chatId, `🔥 ${escapeHtml(habit.title)}`, { inline_keyboard: [[{ text: en ? "✅ Done" : "✅ انجام شد", callback_data: `habit:complete:${habit.id}` }, { text: en ? "⏭️ Skip" : "⏭️ انجام نشد", callback_data: `habit:skip:${habit.id}` }]] });
   }
 }
 
@@ -562,19 +613,21 @@ async function showHabits(env: Env, chatId: number, userId: number): Promise<voi
   const habits = await env.DB.prepare("SELECT id, title, weekdays FROM habits WHERE user_id = ? AND active = 1 ORDER BY id DESC LIMIT 30")
     .bind(userId).all<{ id: number; title: string; weekdays: string }>();
   if (!habits.results.length) {
-    await sendMessage(env, chatId, en ? "You have no habits yet. Choose New habit to create one." : "هنوز عادتی ثبت نکرده‌ای. از «🟢➕ عادت جدید» شروع کن.");
+    await sendMessage(env, chatId, en ? "You have no habits yet. Choose New habit to create one." : "هنوز عادتی ثبت نکرده‌ای. از «➕ عادت جدید» شروع کن.");
     return;
   }
   const weekday = tehranWeekday();
-  await sendMessage(env, chatId, en ? "✅ Your habits:" : "✅ عادت‌های امروز:");
+  await sendMessage(env, chatId, en ? "🪴 Your habits:" : "🪴 عادت‌های امروز:");
   for (const habit of habits.results) {
     const days = parseWeekdays(habit.weekdays);
     const scheduled = days.includes(weekday);
     const done = scheduled ? await env.DB.prepare("SELECT 1 FROM habit_completions WHERE habit_id = ? AND occurrence_date = ?")
       .bind(habit.id, tehranDate()).first() : null;
     const streak = await habitStreak(env.DB, habit.id, tehranDate());
-    await sendMessage(env, chatId, `${done ? "✅" : scheduled ? "⬜" : "▫️"} ${escapeHtml(habit.title)}\n🔥 ${en ? "Current streak" : "زنجیره فعلی"}: ${streak} ${en ? "days" : "روز"}`,
-      scheduled && !done ? { inline_keyboard: [[{ text: en ? "✅ Done" : "✅ انجام شد", callback_data: `habit:complete:${habit.id}` }, { text: en ? "⏭️ Skipped" : "⏭️ انجام نشد", callback_data: `habit:skip:${habit.id}` }]] } : undefined);
+    const actions: InlineButton[][] = [];
+    if (scheduled && !done) actions.push([{ text: en ? "✅ Done" : "✅ انجام شد", callback_data: `habit:complete:${habit.id}` }, { text: en ? "⏭️ Skipped" : "⏭️ انجام نشد", callback_data: `habit:skip:${habit.id}` }]);
+    actions.push([{ text: en ? "🗑 Delete" : "🗑 حذف", callback_data: `habit:delete:${habit.id}` }]);
+    await sendMessage(env, chatId, `${done ? "✅" : scheduled ? "⬜" : "▫️"} ${escapeHtml(habit.title)}\n🔥 ${en ? "Current streak" : "زنجیره فعلی"}: ${streak}`, { inline_keyboard: actions });
   }
 }
 
@@ -648,18 +701,18 @@ async function completeTask(db: D1Database, userId: number, taskId: number, occu
   if (!task) return;
   if (task.kind === "one_time") {
     await db.prepare("UPDATE tasks SET completed = 1 WHERE id = ? AND user_id = ?").bind(taskId, userId).run();
-    if (task.deadline !== null) await db.prepare("UPDATE users SET xp = xp + ? WHERE id = ?").bind(taskXp(task.priority), userId).run();
+    if (task.deadline !== null) await db.prepare("UPDATE users SET xp = xp + ?, consecutive_task_misses = 0 WHERE id = ?").bind(taskXp(task.priority), userId).run();
   } else {
     const result = await db.prepare(
       `INSERT INTO task_completions (task_id, user_id, occurrence_date) VALUES (?, ?, ?)
        ON CONFLICT(task_id, occurrence_date) DO NOTHING`,
     ).bind(taskId, userId, occurrenceDate).run();
-    if (result.meta.changes > 0) await db.prepare("UPDATE users SET xp = xp + ? WHERE id = ?").bind(taskXp(task.priority), userId).run();
+    if (result.meta.changes > 0) await db.prepare("UPDATE users SET xp = xp + ?, consecutive_task_misses = 0 WHERE id = ?").bind(taskXp(task.priority), userId).run();
   }
 }
 
 function taskXp(priority: "low" | "medium" | "high"): number {
-  return priority === "high" ? 10 : priority === "medium" ? 7 : 4;
+  return priority === "high" ? 6 : priority === "medium" ? 4 : 2;
 }
 
 async function showLeaderboard(env: Env, chatId: number, userId: number): Promise<void> {
