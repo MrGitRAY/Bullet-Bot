@@ -12,6 +12,8 @@ type SessionData = {
   habitTitle?: string;
   deadlineDate?: string;
   noDeadline?: boolean;
+  renameType?: "task" | "habit";
+  renameId?: number;
 };
 
 type TaskRow = {
@@ -189,6 +191,17 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
     await env.DB.prepare("UPDATE users SET display_name = ? WHERE id = ?").bind(text, userId).run();
     await clearSession(env.DB, userId);
     await sendMessage(env, message.chat.id, language === "en" ? `✅ Nice to meet you, ${escapeHtml(text)}.` : `✅ خوشحالم که با نام ${escapeHtml(text)} می‌شناسمت.`);
+    return;
+  }
+  if (session.state === "await_rename") {
+    if (text.length < 1 || text.length > 500) {
+      await sendMessage(env, message.chat.id, language === "en" ? "Name must be between 1 and 500 characters." : "نام باید بین ۱ تا ۵۰۰ نویسه باشد.");
+      return;
+    }
+    const table = data.renameType === "habit" ? "habits" : "tasks";
+    await env.DB.prepare(`UPDATE ${table} SET title = ? WHERE id = ? AND user_id = ?${table === "habits" ? " AND active = 1" : ""}`).bind(text, data.renameId, userId).run();
+    await clearSession(env.DB, userId);
+    await sendMessage(env, message.chat.id, language === "en" ? "✅ Name updated." : "✅ نام با موفقیت تغییر کرد.");
     return;
   }
   if (session.state === "await_title") {
@@ -424,6 +437,12 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     await sendMessage(env, chatId, "🗑 عادت حذف شد.");
     return;
   }
+  if (data.startsWith("habit:rename:")) {
+    const habitId = Number(data.split(":")[2]);
+    await setSession(env.DB, userId, "await_rename", { renameType: "habit", renameId: habitId });
+    await sendMessage(env, chatId, (await getLanguage(env.DB, userId)) === "en" ? "Send the new habit name:" : "نام جدید عادت را بفرست:");
+    return;
+  }
   if (data.startsWith("habit:complete:")) {
     const habitId = Number(data.split(":")[2]);
     const previousStreak = await habitStreak(env.DB, habitId, tehranDate());
@@ -491,6 +510,12 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     const taskId = Number(data.split(":")[2]);
     await env.DB.prepare("DELETE FROM tasks WHERE id = ? AND user_id = ?").bind(taskId, userId).run();
     await sendMessage(env, chatId, "🗑 تسک حذف شد.");
+    return;
+  }
+  if (data.startsWith("task:rename:")) {
+    const taskId = Number(data.split(":")[2]);
+    await setSession(env.DB, userId, "await_rename", { renameType: "task", renameId: taskId });
+    await sendMessage(env, chatId, (await getLanguage(env.DB, userId)) === "en" ? "Send the new task name:" : "نام جدید تسک را بفرست:");
   }
 }
 
@@ -544,6 +569,7 @@ async function showTasks(env: Env, chatId: number, userId: number, todayOnly: bo
           { text: en ? "🗑 Delete" : "🗑 حذف", callback_data: `task:delete:${task.id}` },
         ]
       : [{ text: en ? "🗑 Delete" : "🗑 حذف", callback_data: `task:delete:${task.id}` }];
+    if (!todayOnly) actions.push({ text: en ? "✏️ Rename" : "✏️ تغییر نام", callback_data: `task:rename:${task.id}` });
     await sendMessage(
       env,
       chatId,
@@ -647,7 +673,7 @@ async function showHabits(env: Env, chatId: number, userId: number): Promise<voi
     const streak = await habitStreak(env.DB, habit.id, tehranDate());
     const actions: InlineButton[][] = [];
     if (scheduled && !done) actions.push([{ text: en ? "✅ Done" : "✅ انجام شد", callback_data: `habit:complete:${habit.id}` }, { text: en ? "⏭️ Skipped" : "⏭️ انجام نشد", callback_data: `habit:skip:${habit.id}` }]);
-    actions.push([{ text: en ? "🗑 Delete" : "🗑 حذف", callback_data: `habit:delete:${habit.id}` }]);
+    actions.push([{ text: en ? "🗑 Delete" : "🗑 حذف", callback_data: `habit:delete:${habit.id}` }, { text: en ? "✏️ Rename" : "✏️ تغییر نام", callback_data: `habit:rename:${habit.id}` }]);
     await sendMessage(env, chatId, `${done ? "✅" : scheduled ? "⬜" : "▫️"} ${escapeHtml(habit.title)}\n🔥 ${en ? "Current streak" : "زنجیره فعلی"}: ${streak}`, { inline_keyboard: actions });
   }
 }
