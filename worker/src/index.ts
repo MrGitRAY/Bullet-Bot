@@ -351,15 +351,17 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
   }
   if (data.startsWith("habit:complete:")) {
     const habitId = Number(data.split(":")[2]);
+    const previousStreak = await habitStreak(env.DB, habitId, tehranDate());
     const completion = await env.DB.prepare("INSERT INTO habit_completions (habit_id, user_id, occurrence_date) SELECT id, user_id, ? FROM habits WHERE id = ? AND user_id = ? AND active = 1 ON CONFLICT(habit_id, occurrence_date) DO NOTHING")
       .bind(tehranDate(), habitId, userId).run();
-    if (completion.meta.changes > 0) await env.DB.prepare("UPDATE users SET xp = xp + 5 WHERE id = ?").bind(userId).run();
+    if (completion.meta.changes > 0) await env.DB.prepare("UPDATE users SET xp = xp + ? WHERE id = ?").bind(Math.min(previousStreak + 1, 5), userId).run();
     await sendMessage(env, chatId, "✅ عادت امروز ثبت شد.");
     return;
   }
   if (data.startsWith("habit:skip:")) {
     const habitId = Number(data.split(":")[2]);
-    await env.DB.prepare("INSERT INTO habit_skips (habit_id, user_id, occurrence_date) SELECT id, user_id, ? FROM habits WHERE id = ? AND user_id = ? AND active = 1 ON CONFLICT(habit_id, occurrence_date) DO NOTHING").bind(tehranDate(), habitId, userId).run();
+    const skipped = await env.DB.prepare("INSERT INTO habit_skips (habit_id, user_id, occurrence_date) SELECT id, user_id, ? FROM habits WHERE id = ? AND user_id = ? AND active = 1 ON CONFLICT(habit_id, occurrence_date) DO NOTHING").bind(tehranDate(), habitId, userId).run();
+    if (skipped.meta.changes > 0) await env.DB.prepare("UPDATE users SET xp = MAX(0, xp - 2) WHERE id = ?").bind(userId).run();
     await sendMessage(env, chatId, "⏭️ عادت امروز انجام‌نشده ثبت شد.");
     return;
   }
@@ -371,9 +373,14 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
   }
   if (data.startsWith("task:skip:")) {
     const taskId = Number(data.split(":")[2]);
-    await env.DB.prepare(
+    const task = await env.DB.prepare("SELECT priority, kind, deadline FROM tasks WHERE id = ? AND user_id = ? AND completed = 0")
+      .bind(taskId, userId).first<{ priority: "low" | "medium" | "high"; kind: string; deadline: string | null }>();
+    const skipped = await env.DB.prepare(
       "INSERT INTO task_skips (task_id, user_id, occurrence_date) SELECT id, user_id, ? FROM tasks WHERE id = ? AND user_id = ? AND completed = 0 ON CONFLICT(task_id, occurrence_date) DO NOTHING",
     ).bind(tehranDate(), taskId, userId).run();
+    if (task && skipped.meta.changes > 0 && (task.kind === "weekly" || task.deadline !== null)) {
+      await env.DB.prepare("UPDATE users SET xp = MAX(0, xp - ?) WHERE id = ?").bind(taskXp(task.priority) / 2, userId).run();
+    }
     await sendMessage(env, chatId, "⏭️ برای امروز انجام‌نشده ثبت شد.");
     return;
   }
@@ -582,26 +589,37 @@ async function createTask(db: D1Database, userId: number, data: SessionData, dea
 
 async function completeTask(db: D1Database, userId: number, taskId: number, occurrenceDate: string): Promise<void> {
   const task = await db.prepare(
-    "SELECT id, kind FROM tasks WHERE id = ? AND user_id = ? AND completed = 0",
-  ).bind(taskId, userId).first<{ id: number; kind: string }>();
+    "SELECT id, kind, deadline, priority FROM tasks WHERE id = ? AND user_id = ? AND completed = 0",
+  ).bind(taskId, userId).first<{ id: number; kind: string; deadline: string | null; priority: "low" | "medium" | "high" }>();
   if (!task) return;
   if (task.kind === "one_time") {
     await db.prepare("UPDATE tasks SET completed = 1 WHERE id = ? AND user_id = ?").bind(taskId, userId).run();
-    await db.prepare("UPDATE users SET xp = xp + 10 WHERE id = ?").bind(userId).run();
+    if (task.deadline !== null) await db.prepare("UPDATE users SET xp = xp + ? WHERE id = ?").bind(taskXp(task.priority), userId).run();
   } else {
     const result = await db.prepare(
       `INSERT INTO task_completions (task_id, user_id, occurrence_date) VALUES (?, ?, ?)
        ON CONFLICT(task_id, occurrence_date) DO NOTHING`,
     ).bind(taskId, userId, occurrenceDate).run();
-    if (result.meta.changes > 0) await db.prepare("UPDATE users SET xp = xp + 10 WHERE id = ?").bind(userId).run();
+    if (result.meta.changes > 0) await db.prepare("UPDATE users SET xp = xp + ? WHERE id = ?").bind(taskXp(task.priority), userId).run();
   }
+}
+
+function taskXp(priority: "low" | "medium" | "high"): number {
+  return priority === "high" ? 10 : priority === "medium" ? 7 : 4;
 }
 
 async function showLeaderboard(env: Env, chatId: number, userId: number): Promise<void> {
   const en = (await getLanguage(env.DB, userId)) === "en";
   const rows = await env.DB.prepare("SELECT telegram_id, username, display_name, xp FROM users ORDER BY xp DESC, id ASC LIMIT 20").all<{ telegram_id: number; username: string | null; display_name: string | null; xp: number }>();
-  const lines = rows.results.map((row, index) => `${index + 1}. ${escapeHtml(row.display_name || (row.username ? `@${row.username}` : `User ${row.telegram_id}`))} — ${row.xp} XP`);
-  await sendMessage(env, chatId, `${en ? "🏆 Leaderboard" : "🏆 لیدربرد XP"}\n\n${lines.join("\n") || (en ? "No users yet." : "هنوز کاربری ثبت نشده است.")}`, en ? MENU_EN : MENU);
+  const medals = ["🥇", "🥈", "🥉"];
+  const lines = rows.results.map((row, index) => {
+    const rawName = row.display_name || (row.username ? `@${row.username}` : `User ${row.telegram_id}`);
+    const name = escapeHtml(rawName);
+    const directionalName = en ? `\u200E${name}\u200E` : `\u200F${name}\u200F`;
+    return `${medals[index] ?? `🔹 ${index + 1}`} <b>${directionalName}</b>  <code>${row.xp} XP</code>`;
+  });
+  const title = en ? "🏆 <b>XP Leaderboard</b>\n<i>Top performers</i>" : "🏆 <b>لیدربرد XP</b>\n<i>برترین کاربران</i>";
+  await sendMessage(env, chatId, `${title}\n\n${lines.join("\n") || (en ? "No users yet." : "هنوز کاربری ثبت نشده است.")}`, en ? MENU_EN : MENU);
 }
 
 async function getSession(db: D1Database, userId: number): Promise<{ state: string; data: string } | null> {
