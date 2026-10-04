@@ -33,20 +33,11 @@ type ReplyMarkup = {
 };
 
 const MENU = {
-  keyboard: [
-    [{ text: "🔴➕ تسک جدید" }, { text: "🟢➕ عادت جدید" }],
-    [{ text: "📋 تسک‌های امروز" }, { text: "📋 عادت‌ها" }],
-    [{ text: "🗂 همه تسک‌ها" }, { text: "📅 برنامه هفتگی" }],
-    [{ text: "📊 آمار" }, { text: "🏆 لیدربرد" }],
-    [{ text: "راهنما" }, { text: "✏️ تغییر نام" }],
-    [{ text: "🌐 تغییر زبان" }],
-  ],
-  resize_keyboard: true,
+  inline_keyboard: [[{ text: "🔴➕ تسک جدید", callback_data: "menu:task" }, { text: "🟢➕ عادت جدید", callback_data: "menu:habit" }], [{ text: "📋 تسک‌های امروز", callback_data: "menu:today" }, { text: "📋 عادت‌ها", callback_data: "menu:habits" }], [{ text: "🗂 همه تسک‌ها", callback_data: "menu:all" }, { text: "📅 برنامه هفتگی", callback_data: "menu:week" }], [{ text: "📊 آمار", callback_data: "menu:stats" }, { text: "🏆 لیدربرد", callback_data: "menu:leaderboard" }], [{ text: "راهنما", callback_data: "menu:help" }, { text: "✏️ تغییر نام", callback_data: "menu:name" }], [{ text: "🌐 تغییر زبان", callback_data: "menu:language" }]],
 } satisfies ReplyMarkup;
 
 const MENU_EN: ReplyMarkup = {
-  keyboard: [[{ text: "🔴➕ New task" }, { text: "🟢➕ New habit" }], [{ text: "📋 Today's tasks" }, { text: "📋 Habits" }], [{ text: "🗂 All tasks" }, { text: "📅 Weekly plan" }], [{ text: "📊 Statistics" }, { text: "🏆 Leaderboard" }], [{ text: "Help" }, { text: "✏️ Change name" }], [{ text: "🌐 English" }]],
-  resize_keyboard: true,
+  inline_keyboard: [[{ text: "🔴➕ New task", callback_data: "menu:task" }, { text: "🟢➕ New habit", callback_data: "menu:habit" }], [{ text: "📋 Today's tasks", callback_data: "menu:today" }, { text: "📋 Habits", callback_data: "menu:habits" }], [{ text: "🗂 All tasks", callback_data: "menu:all" }, { text: "📅 Weekly plan", callback_data: "menu:week" }], [{ text: "📊 Statistics", callback_data: "menu:stats" }, { text: "🏆 Leaderboard", callback_data: "menu:leaderboard" }], [{ text: "Help", callback_data: "menu:help" }, { text: "✏️ Change name", callback_data: "menu:name" }], [{ text: "🌐 English", callback_data: "menu:language" }]],
 };
 
 const PRIORITIES: Record<string, string> = {
@@ -249,6 +240,22 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
   }
   const userId = await ensureUser(env.DB, query.from);
   await answerCallback(env, query.id);
+
+  if (data.startsWith("menu:")) {
+    const action = data.slice(5);
+    if (action === "task") await showTaskType(env, chatId, userId);
+    else if (action === "habit") await startHabitCreation(env, chatId, userId);
+    else if (action === "today") await showTasks(env, chatId, userId, true);
+    else if (action === "all") await showTasks(env, chatId, userId, false);
+    else if (action === "habits") await showHabits(env, chatId, userId);
+    else if (action === "week") await showWeeklyPlan(env, chatId, userId);
+    else if (action === "stats") await showStats(env, chatId, userId);
+    else if (action === "leaderboard") await showLeaderboard(env, chatId, userId);
+    else if (action === "name") { await setSession(env.DB, userId, "await_display_name", {}); await sendMessage(env, chatId, "نام نمایشی جدیدت را بفرست:"); }
+    else if (action === "language") await sendMessage(env, chatId, "زبان / Language:", { inline_keyboard: [[{ text: "English", callback_data: "lang:en" }, { text: "فارسی", callback_data: "lang:fa" }]] });
+    else if (action === "help") await sendMessage(env, chatId, "راهنما در پیام /help قابل مشاهده است.", MENU);
+    return;
+  }
 
   if (data.startsWith("lang:")) {
     const language = data.slice(5) === "en" ? "en" : "fa";
