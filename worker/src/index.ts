@@ -38,14 +38,14 @@ const MENU = {
     [{ text: "📋 تسک‌های امروز" }, { text: "📋 عادت‌ها" }],
     [{ text: "🗂 همه تسک‌ها" }, { text: "📅 برنامه هفتگی" }],
     [{ text: "📊 آمار" }, { text: "🏆 لیدربرد" }],
-    [{ text: "✏️ تغییر نام" }, { text: "🌐 تغییر زبان" }],
-    [{ text: "راهنما" }],
+    [{ text: "راهنما" }, { text: "✏️ تغییر نام" }],
+    [{ text: "🌐 تغییر زبان" }],
   ],
   resize_keyboard: true,
 } satisfies ReplyMarkup;
 
 const MENU_EN: ReplyMarkup = {
-  keyboard: [[{ text: "🔴➕ New task" }, { text: "🟢➕ New habit" }], [{ text: "📋 Today's tasks" }, { text: "📋 Habits" }], [{ text: "🗂 All tasks" }, { text: "📅 Weekly plan" }], [{ text: "📊 Statistics" }, { text: "🏆 Leaderboard" }], [{ text: "✏️ Change name" }, { text: "🌐 English" }], [{ text: "Help" }]],
+  keyboard: [[{ text: "🔴➕ New task" }, { text: "🟢➕ New habit" }], [{ text: "📋 Today's tasks" }, { text: "📋 Habits" }], [{ text: "🗂 All tasks" }, { text: "📅 Weekly plan" }], [{ text: "📊 Statistics" }, { text: "🏆 Leaderboard" }], [{ text: "Help" }, { text: "✏️ Change name" }], [{ text: "🌐 English" }]],
   resize_keyboard: true,
 };
 
@@ -279,8 +279,8 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
       await clearSession(env.DB, userId);
       await sendMessage(env, chatId, (await getLanguage(env.DB, userId)) === "en" ? "✅ One-time task saved." : "✅ تسک یک‌باره ذخیره شد.", (await getLanguage(env.DB, userId)) === "en" ? MENU_EN : MENU);
     } else if (sessionData.kind === "one_time") {
-      await setSession(env.DB, userId, "await_deadline", sessionData);
-      await sendMessage(env, chatId, (await getLanguage(env.DB, userId)) === "en" ? "Send deadline as YYYY.M.D HH:MM (or M.D HH:MM):" : "ددلاین را این‌طور بفرست: 2026.3.3 23:30 (سال اختیاری است)");
+      await setSession(env.DB, userId, "await_deadline_date", sessionData);
+      await sendMessage(env, chatId, (await getLanguage(env.DB, userId)) === "en" ? "Choose a deadline date or a quick option:" : "روز ددلاین یا گزینه سریع را انتخاب کن:", deadlineKeyboard());
     } else {
       sessionData.weekdays = [];
       await setSession(env.DB, userId, "await_weekdays", sessionData);
@@ -295,6 +295,50 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     await clearSession(env.DB, userId);
     const en = (await getLanguage(env.DB, userId)) === "en";
     await sendMessage(env, chatId, en ? "✅ One-time task saved without a deadline." : "✅ تسک یک‌باره بدون ددلاین ذخیره شد.", en ? MENU_EN : MENU);
+    return;
+  }
+  if (data.startsWith("new:quick:")) {
+    const session = await getSession(env.DB, userId);
+    if (!session || session.state !== "await_deadline_date") return;
+    const quick = data.slice("new:quick:".length);
+    const date = tehranDateOffset(quick === "tomorrow" || quick === "tomorrow_end" ? 1 : 0);
+    const sessionData = JSON.parse(session.data) as SessionData;
+    sessionData.deadlineDate = date;
+    if (quick === "tonight" || quick === "tomorrow_end") {
+      await createTask(env.DB, userId, sessionData, `${date} 23:59`);
+      await clearSession(env.DB, userId);
+      await sendMessage(env, chatId, "✅ تسک با ددلاین سریع ذخیره شد.", MENU);
+    } else {
+      await setSession(env.DB, userId, "await_deadline_hour", sessionData);
+      await sendMessage(env, chatId, "ساعت را انتخاب کن:", hourKeyboard());
+    }
+    return;
+  }
+  if (data.startsWith("new:date:")) {
+    const session = await getSession(env.DB, userId);
+    if (!session || session.state !== "await_deadline_date") return;
+    const sessionData = JSON.parse(session.data) as SessionData;
+    sessionData.deadlineDate = data.slice("new:date:".length);
+    await setSession(env.DB, userId, "await_deadline_hour", sessionData);
+    await sendMessage(env, chatId, "ساعت را انتخاب کن:", hourKeyboard());
+    return;
+  }
+  if (data.startsWith("new:hour:")) {
+    const session = await getSession(env.DB, userId);
+    if (!session || session.state !== "await_deadline_hour") return;
+    const sessionData = JSON.parse(session.data) as SessionData;
+    sessionData.deadlineDate = `${sessionData.deadlineDate} ${data.slice("new:hour:".length)}`;
+    await setSession(env.DB, userId, "await_deadline_minute", sessionData);
+    await sendMessage(env, chatId, "دقیقه را انتخاب کن:", minuteKeyboard());
+    return;
+  }
+  if (data.startsWith("new:minute:")) {
+    const session = await getSession(env.DB, userId);
+    if (!session || session.state !== "await_deadline_minute") return;
+    const sessionData = JSON.parse(session.data) as SessionData;
+    await createTask(env.DB, userId, sessionData, `${sessionData.deadlineDate}:${data.slice("new:minute:".length)}`);
+    await clearSession(env.DB, userId);
+    await sendMessage(env, chatId, "✅ تسک با ددلاین ذخیره شد.", MENU);
     return;
   }
   if (data.startsWith("new:day:")) {
@@ -528,16 +572,19 @@ async function showHabits(env: Env, chatId: number, userId: number): Promise<voi
 }
 
 function deadlineKeyboard(): ReplyMarkup {
-  const rows: InlineButton[][] = [];
-  const now = new Date();
-  for (let i = 0; i < 7; i += 1) {
-    const date = new Date(now.getTime() + i * 86400000);
-    const value = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tehran", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
-    rows.push([{ text: i === 0 ? `امروز (${value})` : value, callback_data: `new:deadline:${value}` }]);
-  }
-  rows.push([{ text: "بدون ددلاین / No deadline", callback_data: "new:deadline:none" }]);
+  const rows: InlineButton[][] = [
+    [{ text: "تا آخر امشب (امروز ساعت ۲۳:۵۹)", callback_data: "new:quick:tonight" }],
+    [{ text: "تا پایان فردا (فردا ساعت ۲۳:۵۹)", callback_data: "new:quick:tomorrow_end" }],
+    [{ text: "امروز، انتخاب ساعت", callback_data: "new:quick:today" }, { text: "فردا، انتخاب ساعت", callback_data: "new:quick:tomorrow" }],
+    [{ text: "انتخاب روز دیگر", callback_data: `new:date:${tehranDateOffset(2)}` }],
+    [{ text: "بدون ددلاین", callback_data: "new:deadline:none" }],
+  ];
   return { inline_keyboard: rows };
 }
+
+function hourKeyboard(): ReplyMarkup { return { inline_keyboard: Array.from({ length: 6 }, (_, row) => Array.from({ length: 4 }, (_, col) => { const hour = row * 4 + col; return { text: String(hour).padStart(2, "0"), callback_data: `new:hour:${String(hour).padStart(2, "0")}` }; })) }; }
+function minuteKeyboard(): ReplyMarkup { return { inline_keyboard: [0, 15, 30, 45].map((minute) => [{ text: String(minute).padStart(2, "0"), callback_data: `new:minute:${String(minute).padStart(2, "0")}` }]) }; }
+function tehranDateOffset(offset: number): string { const date = new Date(Date.now() + offset * 86400000); return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tehran", year: "numeric", month: "2-digit", day: "2-digit" }).format(date); }
 
 async function habitStreak(db: D1Database, habitId: number, today: string): Promise<number> {
   const rows = await db.prepare("SELECT occurrence_date FROM habit_completions WHERE habit_id = ? ORDER BY occurrence_date DESC LIMIT 365").bind(habitId).all<{ occurrence_date: string }>();
