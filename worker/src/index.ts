@@ -141,15 +141,19 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
     return;
   }
   if (["📒 برنامه امروز", "📒 Today's Plan", "📋 تسک‌های امروز", "📋 Today's tasks", "/today"].includes(text)) {
-    await showTasks(env, message.chat.id, userId, true);
+    await showDailyPlan(env, message.chat.id, userId);
     return;
   }
-  if (["📋 همه تسک‌ها", "🗂 همه تسک‌ها", "🗂 All tasks", "/tasks"].includes(text)) {
+  if (["📋 همه تسک‌ها", "🗂 همه تسک‌ها", "📋 All tasks", "🗂 All tasks", "/tasks"].includes(text)) {
     await showTasks(env, message.chat.id, userId, false);
     return;
   }
   if (["🌱 همه عادت‌ها", "🌱 All habits"].includes(text)) { await showHabits(env, message.chat.id, userId); return; }
-  if (["⚙️ تنظیمات", "⚙️ Settings"].includes(text)) { await sendMessage(env, message.chat.id, "⚙️ تنظیمات / Settings\n\n✏️ /name\n🌐 تغییر زبان / Change language"); return; }
+  if (["⚙️ تنظیمات", "⚙️ Settings"].includes(text)) {
+    const en = (await getLanguage(env.DB, userId)) === "en";
+    await sendMessage(env, message.chat.id, en ? "⚙️ <b>Settings</b>" : "⚙️ <b>تنظیمات</b>", { inline_keyboard: [[{ text: en ? "✏️ Change name" : "✏️ تغییر نام", callback_data: "menu:name" }], [{ text: en ? "🌐 Change language" : "🌐 تغییر زبان", callback_data: "menu:language" }]] });
+    return;
+  }
   if (["📊 آمار", "📊 Reports", "📊 Statistics", "/stats"].includes(text)) {
     await showStats(env, message.chat.id, userId);
     return;
@@ -162,7 +166,7 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
     await showHabits(env, message.chat.id, userId);
     return;
   }
-  if (["📅 برنامه هفتگی", "📅 Weekly plan", "/week"].includes(text)) {
+  if (["📅 برنامه هفتگی", "📅 Weekly Plan", "📅 Weekly plan", "/week"].includes(text)) {
     await showWeeklyPlan(env, message.chat.id, userId);
     return;
   }
