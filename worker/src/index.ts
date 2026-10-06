@@ -656,10 +656,15 @@ async function showDailyPlan(env: Env, chatId: number, userId: number): Promise<
       : Boolean(task.deadline && task.deadline.slice(0, 10) === today);
     return scheduled && !task.doneToday && !task.skippedToday;
   };
-  const activeWeeklyAndDue = tasks.results.filter((task) => task.kind === "weekly" && activeToday(task) || task.kind === "one_time" && Boolean(task.deadline && task.deadline.slice(0, 10) === today) && activeToday(task));
+  const dailyTasks = tasks.results.filter((task) =>
+    task.kind === "one_time" || parseWeekdays(task.weekdays).includes(weekday),
+  );
+  const activeWeeklyAndDue = dailyTasks.filter((task) =>
+    (task.kind === "weekly" || Boolean(task.deadline && task.deadline.slice(0, 10) === today)) && activeToday(task),
+  );
   const noDeadlineOneTime = tasks.results.filter((task) => task.kind === "one_time" && task.deadline === null && !task.doneToday && !task.skippedToday);
   const openHabits = habitStates.filter((habit) => !habit.done && !habit.skipped);
-  const summaryTasks = tasks.results.map((task) => {
+  const summaryTasks = dailyTasks.map((task) => {
     const details = task.kind === "weekly"
       ? (en ? "Weekly · " : "هفتگی · ") + formatWeekdays(parseWeekdays(task.weekdays))
       : task.deadline ? (en ? "Deadline · " : "ددلاین · ") + formatDeadline(task.deadline) : (en ? "No deadline" : "بدون ددلاین");
@@ -672,7 +677,7 @@ async function showDailyPlan(env: Env, chatId: number, userId: number): Promise<
     "</blockquote>",
   );
   const summaryEntries = [
-    "📋 <b>" + (en ? "Tasks" : "تسک‌ها") + " (" + tasks.results.length + ")</b>",
+    "📋 <b>" + (en ? "Tasks" : "تسک‌ها") + " (" + dailyTasks.length + ")</b>",
     ...(summaryTasks.length ? summaryTasks : [en ? "No tasks." : "تسکی ثبت نشده است."]),
     "🌱 <b>" + (en ? "Habits" : "عادت‌ها") + " (" + habitStates.length + ")</b>",
     ...(summaryHabits.length ? summaryHabits : [en ? "No habits." : "عادتی ثبت نشده است."]),
