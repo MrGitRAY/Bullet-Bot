@@ -155,8 +155,7 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
   }
   if (["🌱 همه عادت‌ها", "🌱 All habits"].includes(text)) { await showHabits(env, message.chat.id, userId); return; }
   if (["⚙️ تنظیمات", "⚙️ Settings"].includes(text)) {
-    const en = (await getLanguage(env.DB, userId)) === "en";
-    await sendMessage(env, message.chat.id, en ? "⚙️ <b>Settings</b>" : "⚙️ <b>تنظیمات</b>", { inline_keyboard: [[{ text: en ? "✏️ Change name" : "✏️ تغییر نام", callback_data: "menu:name" }], [{ text: en ? "🌐 Change language" : "🌐 تغییر زبان", callback_data: "menu:language" }]] });
+    await showSettings(env, message.chat.id, userId);
     return;
   }
   if (["📊 آمار", "📊 Reports", "📊 Statistics", "/stats"].includes(text)) {
@@ -255,7 +254,8 @@ async function handleMessage(message: Message, env: Env): Promise<void> {
     }
     await createTask(env.DB, userId, data, deadline);
     await clearSession(env.DB, userId);
-    await sendMessage(env, message.chat.id, en ? "✅ Task saved with deadline " + formatDeadline(deadline) : "✅ تسک با ددلاین " + formatDeadline(deadline) + " ذخیره شد.");
+    const calendar = await getCalendar(env.DB, userId);
+    await sendMessage(env, message.chat.id, en ? "✅ Task saved with deadline " + formatDeadline(deadline, en, calendar) : "✅ تسک با ددلاین " + formatDeadline(deadline, en, calendar) + " ذخیره شد.");
     return;
   }
   await sendMessage(env, message.chat.id, "لطفاً از دکمه‌های پیام قبلی استفاده کن یا /cancel را بفرست.");
@@ -282,8 +282,7 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     else if (action === "stats") await showStats(env, chatId, userId);
     else if (action === "leaderboard") await showLeaderboard(env, chatId, userId);
     else if (action === "settings") {
-      const en = (await getLanguage(env.DB, userId)) === "en";
-      await sendMessage(env, chatId, en ? "⚙️ <b>Settings</b>" : "⚙️ <b>تنظیمات</b>", { inline_keyboard: [[{ text: en ? "✏️ Change name" : "✏️ تغییر نام", callback_data: "menu:name" }], [{ text: en ? "🌐 Change language" : "🌐 تغییر زبان", callback_data: "menu:language" }]] });
+      await showSettings(env, chatId, userId);
     }
     else if (action === "name") { await setSession(env.DB, userId, "await_display_name", {}); await sendMessage(env, chatId, "نام نمایشی جدیدت را بفرست:"); }
     else if (action === "language") await sendMessage(env, chatId, "زبان / Language:", { inline_keyboard: [[{ text: "English", callback_data: "lang:en" }, { text: "فارسی", callback_data: "lang:fa" }]] });
@@ -299,6 +298,13 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     await env.DB.prepare("UPDATE users SET language = ? WHERE id = ?").bind(language, userId).run();
     await sendMessage(env, chatId, language === "en" ? "✅ Language changed to English." : "✅ زبان به فارسی تغییر کرد.");
     await sendMessage(env, chatId, language === "en" ? "Quick menu:" : "منوی سریع:", language === "en" ? BOTTOM_MENU_EN : BOTTOM_MENU);
+    return;
+  }
+
+  if (data.startsWith("calendar:set:")) {
+    const calendar = data.slice("calendar:set:".length) === "persian" ? "persian" : "gregorian";
+    await env.DB.prepare("UPDATE users SET calendar = ? WHERE id = ?").bind(calendar, userId).run();
+    await showSettings(env, chatId, userId, true);
     return;
   }
 
@@ -325,7 +331,9 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
       await sendMessage(env, chatId, (await getLanguage(env.DB, userId)) === "en" ? "✅ One-time task saved." : "✅ تسک یک‌باره ذخیره شد.");
     } else if (sessionData.kind === "one_time") {
       await setSession(env.DB, userId, "await_deadline_date", sessionData);
-      await sendMessage(env, chatId, (await getLanguage(env.DB, userId)) === "en" ? "Choose a deadline date or a quick option:" : "روز ددلاین یا گزینه سریع را انتخاب کن:", deadlineKeyboard((await getLanguage(env.DB, userId)) === "en"));
+      const en = (await getLanguage(env.DB, userId)) === "en";
+      const calendar = await getCalendar(env.DB, userId);
+      await sendMessage(env, chatId, en ? "Choose a deadline date or a quick option:" : "روز ددلاین یا گزینه سریع را انتخاب کن:", deadlineKeyboard(en, calendar));
     } else {
       sessionData.weekdays = [];
       await setSession(env.DB, userId, "await_weekdays", sessionData);
@@ -348,8 +356,9 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     const direction = parts.length > 3 ? parts[2] : "";
     const monthKey = parts.length > 3 ? parts[3] : parts[2];
     let selectedMonth = monthKey;
-    if (direction === "prev" || direction === "next") selectedMonth = shiftMonth(monthKey, direction === "prev" ? -1 : 1);
-    if (query.message) await editMarkup(env, chatId, query.message.message_id, calendarKeyboard(selectedMonth, (await getLanguage(env.DB, userId)) === "en"));
+    const calendar = await getCalendar(env.DB, userId);
+    if (direction === "prev" || direction === "next") selectedMonth = shiftMonth(monthKey, direction === "prev" ? -1 : 1, calendar);
+    if (query.message) await editMarkup(env, chatId, query.message.message_id, calendarKeyboard(selectedMonth, (await getLanguage(env.DB, userId)) === "en", calendar));
     return;
   }
   if (data.startsWith("new:quick:")) {
@@ -360,10 +369,11 @@ async function handleCallback(query: CallbackQuery, env: Env): Promise<void> {
     const sessionData = JSON.parse(session.data) as SessionData;
     sessionData.deadlineDate = date;
     const en = (await getLanguage(env.DB, userId)) === "en";
+    const calendar = await getCalendar(env.DB, userId);
     if (quick === "tonight" || quick === "tomorrow_end") {
       await createTask(env.DB, userId, sessionData, date + " 23:59");
       await clearSession(env.DB, userId);
-      await sendMessage(env, chatId, en ? "✅ Task saved with deadline " + formatDeadline(date + " 23:59") : "✅ تسک با ددلاین " + formatDeadline(date + " 23:59") + " ذخیره شد.");
+      await sendMessage(env, chatId, en ? "✅ Task saved with deadline " + formatDeadline(date + " 23:59", en, calendar) : "✅ تسک با ددلاین " + formatDeadline(date + " 23:59", en, calendar) + " ذخیره شد.");
     } else {
       await setSession(env.DB, userId, "await_deadline_time", sessionData);
       await sendMessage(env, chatId, en ? "Send the deadline time in HH:MM format." : "ساعت ددلاین را به شکل ساعت:دقیقه بفرست (مثلاً 20:00).");
@@ -583,6 +593,7 @@ async function sendSummary(env: Env, chatId: number, title: string, entries: str
 }
 async function showTasks(env: Env, chatId: number, userId: number, todayOnly: boolean): Promise<void> {
   const en = (await getLanguage(env.DB, userId)) === "en";
+  const calendar = await getCalendar(env.DB, userId);
   const today = tehranDate();
   const weekday = tehranWeekday();
   const result = await env.DB.prepare(
@@ -601,7 +612,7 @@ async function showTasks(env: Env, chatId: number, userId: number, todayOnly: bo
   }
   const summary = tasks.map((task) => {
     const details = task.kind === "one_time"
-      ? (task.deadline ? (en ? "Deadline: " : "ددلاین: ") + formatDeadline(task.deadline) : (en ? "No deadline" : "بدون ددلاین"))
+      ? (task.deadline ? (en ? "Deadline: " : "ددلاین: ") + formatDeadline(task.deadline, en, calendar) : (en ? "No deadline" : "بدون ددلاین"))
       : (en ? "Days: " : "روزها: ") + formatWeekdays(parseWeekdays(task.weekdays));
     const closed = task.doneToday || task.skippedToday
       ? "\n" + (en ? "Today's status: " : "وضعیت امروز: ") + (task.doneToday ? (en ? "Done" : "انجام شد") : (en ? "Skipped" : "انجام‌نشده"))
@@ -613,7 +624,7 @@ async function showTasks(env: Env, chatId: number, userId: number, todayOnly: bo
     const scheduledToday = task.kind === "one_time" || parseWeekdays(task.weekdays).includes(weekday);
     const closedToday = Boolean(task.doneToday || task.skippedToday);
     const schedule = task.kind === "one_time"
-      ? (en ? "Deadline: " : "ددلاین: ") + (task.deadline ? formatDeadline(task.deadline) : (en ? "No deadline" : "بدون ددلاین"))
+      ? (en ? "Deadline: " : "ددلاین: ") + (task.deadline ? formatDeadline(task.deadline, en, calendar) : (en ? "No deadline" : "بدون ددلاین"))
       : (en ? "Days: " : "روزها: ") + formatWeekdays(parseWeekdays(task.weekdays));
     const actions: InlineButton[][] = [];
     if (scheduledToday && !closedToday) actions.push([
@@ -634,6 +645,7 @@ async function showTasks(env: Env, chatId: number, userId: number, todayOnly: bo
 }
 async function showDailyPlan(env: Env, chatId: number, userId: number): Promise<void> {
   const en = (await getLanguage(env.DB, userId)) === "en";
+  const calendar = await getCalendar(env.DB, userId);
   const today = tehranDate();
   const weekday = tehranWeekday();
   const tasks = await env.DB.prepare(
@@ -667,7 +679,7 @@ async function showDailyPlan(env: Env, chatId: number, userId: number): Promise<
   const summaryTasks = dailyTasks.map((task) => {
     const details = task.kind === "weekly"
       ? (en ? "Weekly · " : "هفتگی · ") + formatWeekdays(parseWeekdays(task.weekdays))
-      : task.deadline ? (en ? "Deadline · " : "ددلاین · ") + formatDeadline(task.deadline) : (en ? "No deadline" : "بدون ددلاین");
+      : task.deadline ? (en ? "Deadline · " : "ددلاین · ") + formatDeadline(task.deadline, en, calendar) : (en ? "No deadline" : "بدون ددلاین");
     return PRIORITIES[task.priority] + " " + escapeHtml(shorten(task.title, 55)) + "\n<blockquote>" + details + "</blockquote>";
   });
   const summaryHabits = habitStates.map((habit) =>
@@ -691,7 +703,7 @@ async function showDailyPlan(env: Env, chatId: number, userId: number): Promise<
   for (const task of activeWeeklyAndDue) {
     const details = task.kind === "weekly"
       ? (en ? "Weekly · " : "هفتگی · ") + formatWeekdays(parseWeekdays(task.weekdays))
-      : (en ? "Deadline · " : "ددلاین · ") + formatDeadline(task.deadline!);
+      : (en ? "Deadline · " : "ددلاین · ") + formatDeadline(task.deadline!, en, calendar);
     await sendMessage(env, chatId,
       PRIORITIES[task.priority] + " " + escapeHtml(task.title) + "\n<blockquote>" + details + "</blockquote>",
       { inline_keyboard: [[{ text: en ? "✅ Complete" : "✅ انجام شد", callback_data: "task:complete:" + task.id }, { text: en ? "⏭️ Skip" : "⏭️ انجام نشد", callback_data: "task:skip:" + task.id }]] },
@@ -853,24 +865,33 @@ async function showHabits(env: Env, chatId: number, userId: number): Promise<voi
 function shorten(value: string, maximum: number): string {
   return value.length > maximum ? value.slice(0, maximum - 1) + "…" : value;
 }
-function deadlineKeyboard(en: boolean): ReplyMarkup {
+function deadlineKeyboard(en: boolean, calendar: "gregorian" | "persian"): ReplyMarkup {
   const rows: InlineButton[][] = [
     [{ text: en ? "Until tonight (23:59 today)" : "تا آخر امشب (امروز ساعت ۲۳:۵۹)", callback_data: "new:quick:tonight" }],
     [{ text: en ? "Until tomorrow (23:59 tomorrow)" : "تا پایان فردا (فردا ساعت ۲۳:۵۹)", callback_data: "new:quick:tomorrow_end" }],
     [{ text: en ? "Today, enter time" : "امروز، وارد کردن ساعت", callback_data: "new:quick:today" }, { text: en ? "Tomorrow, enter time" : "فردا، وارد کردن ساعت", callback_data: "new:quick:tomorrow" }],
-    [{ text: en ? "Choose another date" : "انتخاب روز دیگر", callback_data: "new:calendar:" + tehranDate().slice(0, 7) }],
+    [{ text: en ? "Choose another date" : "انتخاب روز دیگر", callback_data: "new:calendar:" + calendarMonthKey(tehranDate(), calendar) }],
     [{ text: en ? "No deadline" : "بدون ددلاین", callback_data: "new:deadline:none" }],
   ];
   return { inline_keyboard: rows };
 }
 
-function calendarKeyboard(monthKey: string, en: boolean): ReplyMarkup {
+function calendarKeyboard(monthKey: string, en: boolean, calendar: "gregorian" | "persian"): ReplyMarkup {
   const parts = monthKey.split("-").map(Number);
   const year = parts[0];
   const month = parts[1];
-  const first = new Date(Date.UTC(year, month - 1, 1));
-  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
-  const title = new Intl.DateTimeFormat(en ? "en-US" : "fa-IR-u-ca-gregory", { month: "long", year: "numeric", timeZone: "UTC" }).format(first);
+  const monthDates = calendar === "persian"
+    ? persianMonthDates(year, month)
+    : Array.from({ length: new Date(Date.UTC(year, month, 0)).getUTCDate() }, (_, index) => {
+      const date = new Date(Date.UTC(year, month - 1, index + 1));
+      return { day: index + 1, iso: date.toISOString().slice(0, 10) };
+    });
+  if (!monthDates.length) return { inline_keyboard: [] };
+  const first = new Date(monthDates[0].iso + "T12:00:00Z");
+  const locale = en
+    ? calendar === "persian" ? "en-US-u-ca-persian" : "en-US-u-ca-gregory"
+    : calendar === "persian" ? "fa-IR-u-ca-persian" : "fa-IR-u-ca-gregory";
+  const title = new Intl.DateTimeFormat(locale, { month: "long", year: "numeric", timeZone: "UTC" }).format(first);
   const rows: InlineButton[][] = [[
     { text: "‹", callback_data: "new:calendar:prev:" + monthKey },
     { text: title, callback_data: "new:noop" },
@@ -882,10 +903,9 @@ function calendarKeyboard(monthKey: string, en: boolean): ReplyMarkup {
   const offset = (first.getUTCDay() + 1) % 7;
   for (let index = 0; index < offset; index++) cells.push({ text: "·", callback_data: "new:noop" });
   const today = tehranDate();
-  for (let day = 1; day <= daysInMonth; day++) {
-    const date = year + "-" + String(month).padStart(2, "0") + "-" + String(day).padStart(2, "0");
-    const enabled = date >= today;
-    cells.push({ text: (date === today ? "• " : "") + day, callback_data: enabled ? "new:date:" + date : "new:noop" });
+  for (const item of monthDates) {
+    const enabled = item.iso >= today;
+    cells.push({ text: (item.iso === today ? "• " : "") + item.day, callback_data: enabled ? "new:date:" + item.iso : "new:noop" });
   }
   while (cells.length % 7) cells.push({ text: "·", callback_data: "new:noop" });
   for (let index = 0; index < cells.length; index += 7) rows.push(cells.slice(index, index + 7));
@@ -893,11 +913,60 @@ function calendarKeyboard(monthKey: string, en: boolean): ReplyMarkup {
   return { inline_keyboard: rows };
 }
 
-function shiftMonth(monthKey: string, amount: number): string {
+function shiftMonth(monthKey: string, amount: number, calendar: "gregorian" | "persian"): string {
   const parts = monthKey.split("-").map(Number);
+  if (calendar === "persian") {
+    const shiftedMonth = parts[1] - 1 + amount;
+    const year = parts[0] + Math.floor(shiftedMonth / 12);
+    const month = ((shiftedMonth % 12) + 12) % 12 + 1;
+    return year + "-" + String(month).padStart(2, "0");
+  }
   const shifted = new Date(Date.UTC(parts[0], parts[1] - 1 + amount, 1));
   return shifted.getUTCFullYear() + "-" + String(shifted.getUTCMonth() + 1).padStart(2, "0");
 }
+
+function calendarMonthKey(isoDate: string, calendar: "gregorian" | "persian"): string {
+  const [year, month] = calendarDateParts(isoDate, calendar);
+  return year + "-" + String(month).padStart(2, "0");
+}
+
+function calendarDateParts(isoDate: string, calendar: "gregorian" | "persian"): [number, number, number] {
+  if (calendar === "gregorian") {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(isoDate);
+    if (!match) throw new Error("Invalid ISO date");
+    return [Number(match[1]), Number(match[2]), Number(match[3])];
+  }
+  const parts = new Intl.DateTimeFormat("en-US-u-ca-persian-nu-latn", {
+    year: "numeric", month: "numeric", day: "numeric", timeZone: "UTC",
+  }).formatToParts(new Date(isoDate + "T12:00:00Z"));
+  const get = (type: string) => Number(parts.find((part) => part.type === type)?.value);
+  return [get("year"), get("month"), get("day")];
+}
+
+function persianMonthDates(persianYear: number, persianMonth: number): Array<{ day: number; iso: string }> {
+  if (persianMonth < 1 || persianMonth > 12) return [];
+  const start = Date.UTC(persianYear + 621, 0, 1);
+  let first: Date | null = null;
+  for (let offset = 0; offset < 470; offset += 1) {
+    const candidate = new Date(start + offset * 86400000);
+    const [year, month, day] = calendarDateParts(candidate.toISOString().slice(0, 10), "persian");
+    if (year === persianYear && month === persianMonth && day === 1) {
+      first = candidate;
+      break;
+    }
+  }
+  if (!first) return [];
+  const dates: Array<{ day: number; iso: string }> = [];
+  for (let offset = 0; offset < 32; offset += 1) {
+    const candidate = new Date(first.getTime() + offset * 86400000);
+    const iso = candidate.toISOString().slice(0, 10);
+    const [year, month, day] = calendarDateParts(iso, "persian");
+    if (year !== persianYear || month !== persianMonth) break;
+    dates.push({ day, iso });
+  }
+  return dates;
+}
+
 function tehranDateOffset(offset: number): string {
   const date = new Date(Date.now() + offset * 86400000);
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tehran", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
@@ -933,12 +1002,13 @@ async function habitBestStreak(db: D1Database, habitId: number): Promise<number>
 }
 async function showWeeklyPlan(env: Env, chatId: number, userId: number): Promise<void> {
   const en = (await getLanguage(env.DB, userId)) === "en";
+  const calendar = await getCalendar(env.DB, userId);
   const tasks = await env.DB.prepare("SELECT id, title, priority, kind, deadline, weekdays, completed FROM tasks WHERE user_id = ? AND ((kind = 'weekly') OR (kind = 'one_time' AND completed = 0)) ORDER BY id DESC LIMIT 100")
     .bind(userId).all<TaskRow>();
   const habits = await env.DB.prepare("SELECT title, weekdays FROM habits WHERE user_id = ? AND active = 1 ORDER BY id DESC LIMIT 100")
     .bind(userId).all<{ title: string; weekdays: string }>();
   const englishDays = ["Saturday", "Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
-  await sendMessage(env, chatId, en ? "📅 <b>Weekly Plan</b>" : "📅 <b>برنامه هفتگی</b>");
+      await sendMessage(env, chatId, en ? "📅 <b>Weekly Plan</b>" : "📅 <b>برنامه هفتگی</b>");
   for (let index = 0; index < WEEKDAYS.length; index++) {
     const day = WEEKDAYS[index][0];
     const label = WEEKDAYS[index][1];
@@ -962,16 +1032,22 @@ async function showWeeklyPlan(env: Env, chatId: number, userId: number): Promise
   if (oneTime.length) {
     const rows = oneTime.slice(0, 20).map((task) =>
       PRIORITIES[task.priority] + " " + escapeHtml(shorten(task.title, 80)) +
-      "\n<blockquote>" + (task.deadline ? (en ? "Deadline: " : "ددلاین: ") + formatDeadline(task.deadline) : (en ? "No deadline" : "بدون ددلاین")) + "</blockquote>",
+      "\n<blockquote>" + (task.deadline ? (en ? "Deadline: " : "ددلاین: ") + formatDeadline(task.deadline, en, calendar) : (en ? "No deadline" : "بدون ددلاین")) + "</blockquote>",
     );
     if (oneTime.length > rows.length) rows.push("… " + (oneTime.length - rows.length) + (en ? " more" : " مورد دیگر"));
     await sendMessage(env, chatId, "<b>📝 " + (en ? "One-time tasks" : "تسک‌های یک‌باره") + "</b>\n\n" + rows.join("\n"));
   }
 }
-function formatDeadline(value: string): string {
+function formatDeadline(value: string, en: boolean, calendar: "gregorian" | "persian"): string {
   const match = /^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}:\d{2})$/.exec(value);
   if (!match) return escapeHtml(value);
-  return match[3] + "-" + match[2] + "-" + match[1] + " | " + match[4];
+  const locale = en
+    ? calendar === "persian" ? "en-US-u-ca-persian" : "en-US-u-ca-gregory"
+    : calendar === "persian" ? "fa-IR-u-ca-persian" : "fa-IR-u-ca-gregory";
+  const date = new Intl.DateTimeFormat(locale, {
+    day: "numeric", month: "long", year: "numeric", timeZone: "UTC",
+  }).format(new Date(match[1] + "-" + match[2] + "-" + match[3] + "T12:00:00Z"));
+  return escapeHtml(date) + " | " + match[4];
 }
 async function ensureUser(db: D1Database, user: TelegramUser): Promise<number> {
   await db.prepare(
@@ -986,6 +1062,29 @@ async function ensureUser(db: D1Database, user: TelegramUser): Promise<number> {
 async function getLanguage(db: D1Database, userId: number): Promise<"fa" | "en"> {
   const row = await db.prepare("SELECT language FROM users WHERE id = ?").bind(userId).first<{ language: string }>();
   return row?.language === "en" ? "en" : "fa";
+}
+
+async function getCalendar(db: D1Database, userId: number): Promise<"gregorian" | "persian"> {
+  const row = await db.prepare("SELECT calendar FROM users WHERE id = ?").bind(userId).first<{ calendar: string }>();
+  return row?.calendar === "persian" ? "persian" : "gregorian";
+}
+
+async function showSettings(env: Env, chatId: number, userId: number, changed = false): Promise<void> {
+  const en = (await getLanguage(env.DB, userId)) === "en";
+  const calendar = await getCalendar(env.DB, userId);
+  const calendarName = calendar === "persian" ? (en ? "Persian" : "شمسی") : (en ? "Gregorian" : "میلادی");
+  const title = en ? "⚙️ <b>Settings</b>" : "⚙️ <b>تنظیمات</b>";
+  const confirmation = changed
+    ? (en ? "\n✅ Calendar set to " : "\n✅ تقویم روی ") + calendarName + (en ? "." : " تنظیم شد.")
+    : "";
+  await sendMessage(env, chatId, title + confirmation, {
+    inline_keyboard: [
+      [{ text: en ? "✏️ Change name" : "✏️ تغییر نام", callback_data: "menu:name" }],
+      [{ text: en ? "🌐 Change language" : "🌐 تغییر زبان", callback_data: "menu:language" }],
+      [{ text: (calendar === "persian" ? "✅ " : "") + (en ? "📅 Persian calendar" : "📅 تقویم شمسی"), callback_data: "calendar:set:persian" }],
+      [{ text: (calendar === "gregorian" ? "✅ " : "") + (en ? "📅 Gregorian calendar" : "📅 تقویم میلادی"), callback_data: "calendar:set:gregorian" }],
+    ],
+  });
 }
 
 async function createTask(db: D1Database, userId: number, data: SessionData, deadline: string | null): Promise<void> {
