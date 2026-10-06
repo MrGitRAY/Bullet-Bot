@@ -813,7 +813,8 @@ async function showHabits(env: Env, chatId: number, userId: number): Promise<voi
     const done = scheduled ? await env.DB.prepare("SELECT 1 FROM habit_completions WHERE habit_id = ? AND occurrence_date = ?").bind(habit.id, today).first() : null;
     const skipped = scheduled ? await env.DB.prepare("SELECT 1 FROM habit_skips WHERE habit_id = ? AND occurrence_date = ?").bind(habit.id, today).first() : null;
     const streak = await habitStreak(env.DB, habit.id, today);
-    return { ...habit, scheduled, done: Boolean(done), skipped: Boolean(skipped), streak };
+    const bestStreak = await habitBestStreak(env.DB, habit.id);
+    return { ...habit, scheduled, done: Boolean(done), skipped: Boolean(skipped), streak, bestStreak };
   }));
   const heading = en ? "🪴 All habits" : "🪴 همه عادت‌ها";
   if (!habits.length) {
@@ -822,7 +823,8 @@ async function showHabits(env: Env, chatId: number, userId: number): Promise<voi
   }
   const summary = habits.map((habit) =>
     "🌱 " + escapeHtml(shorten(habit.title, 70)) + "\n<blockquote>" +
-    (en ? "Current streak: " : "زنجیره فعلی: ") + habit.streak + "</blockquote>",
+    (en ? "Current streak: " : "زنجیره فعلی: ") + habit.streak + "\n" +
+    (en ? "Best streak: " : "بهترین زنجیره: ") + habit.bestStreak + "</blockquote>",
   );
   await sendSummary(env, chatId, "<b>" + heading + " (" + habits.length + ")</b>", summary, en ? "No habits yet." : "هنوز عادتی ثبت نشده است.");
   for (const habit of habits) {
@@ -842,7 +844,8 @@ async function showHabits(env: Env, chatId: number, userId: number): Promise<voi
     ]);
     await sendMessage(env, chatId,
       "🌱 " + escapeHtml(habit.title) + "\n<blockquote>" + todayStatus + "\n🔥 " +
-      (en ? "Current streak: " : "زنجیره فعلی: ") + habit.streak + "</blockquote>",
+      (en ? "Current streak: " : "زنجیره فعلی: ") + habit.streak + "\n" +
+      (en ? "Best streak: " : "بهترین زنجیره: ") + habit.bestStreak + "</blockquote>",
       { inline_keyboard: actions },
     );
   }
@@ -914,6 +917,19 @@ async function habitStreak(db: D1Database, habitId: number, today: string): Prom
     cursor = new Date(cursor.getTime() - 86400000);
   }
   return streak;
+}
+async function habitBestStreak(db: D1Database, habitId: number): Promise<number> {
+  const rows = await db.prepare("SELECT occurrence_date FROM habit_completions WHERE habit_id = ? ORDER BY occurrence_date").bind(habitId).all<{ occurrence_date: string }>();
+  let best = 0;
+  let current = 0;
+  let previous: number | null = null;
+  for (const row of rows.results) {
+    const date = Date.parse(row.occurrence_date + "T00:00:00Z");
+    current = previous !== null && date - previous === 86400000 ? current + 1 : 1;
+    best = Math.max(best, current);
+    previous = date;
+  }
+  return best;
 }
 async function showWeeklyPlan(env: Env, chatId: number, userId: number): Promise<void> {
   const en = (await getLanguage(env.DB, userId)) === "en";
