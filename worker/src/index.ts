@@ -566,6 +566,21 @@ async function showTaskType(env: Env, chatId: number, userId: number): Promise<v
   });
 }
 
+async function sendSummary(env: Env, chatId: number, title: string, entries: string[], emptyText: string): Promise<void> {
+  if (!entries.length) {
+    await sendMessage(env, chatId, title + (emptyText ? "\n" + emptyText : ""));
+    return;
+  }
+  let message = title;
+  for (const entry of entries) {
+    if (message.length + entry.length + 2 > 3500 && message !== title) {
+      await sendMessage(env, chatId, message);
+      message = title + "\n<i>" + (title.includes("برنامه") || title.includes("همه") ? "ادامه" : "continued") + "</i>";
+    }
+    message += "\n\n" + entry;
+  }
+  await sendMessage(env, chatId, message);
+}
 async function showTasks(env: Env, chatId: number, userId: number, todayOnly: boolean): Promise<void> {
   const en = (await getLanguage(env.DB, userId)) === "en";
   const today = tehranDate();
@@ -575,7 +590,7 @@ async function showTasks(env: Env, chatId: number, userId: number, todayOnly: bo
     "EXISTS (SELECT 1 FROM task_completions c WHERE c.task_id = t.id AND c.occurrence_date = ?) AS doneToday, " +
     "EXISTS (SELECT 1 FROM task_skips s WHERE s.task_id = t.id AND s.occurrence_date = ?) AS skippedToday " +
     "FROM tasks t WHERE t.user_id = ? AND (t.kind = 'weekly' OR (t.kind = 'one_time' AND t.completed = 0)) " +
-    "ORDER BY t.deadline IS NULL, t.deadline, t.id LIMIT 100",
+    "ORDER BY t.deadline IS NULL, t.deadline, t.id",
   ).bind(today, today, userId).all<TaskRow>();
   const tasks = result.results.filter((task) => !todayOnly ||
     ((task.kind === "one_time" || parseWeekdays(task.weekdays).includes(weekday)) && !task.doneToday && !task.skippedToday));
@@ -584,7 +599,7 @@ async function showTasks(env: Env, chatId: number, userId: number, todayOnly: bo
     await sendMessage(env, chatId, title + "\n" + (en ? "No tasks to show. ✨" : "تسکی برای نمایش وجود ندارد. ✨"));
     return;
   }
-  const summary = tasks.slice(0, 12).map((task) => {
+  const summary = tasks.map((task) => {
     const details = task.kind === "one_time"
       ? (task.deadline ? (en ? "Deadline: " : "ددلاین: ") + formatDeadline(task.deadline) : (en ? "No deadline" : "بدون ددلاین"))
       : (en ? "Days: " : "روزها: ") + formatWeekdays(parseWeekdays(task.weekdays));
@@ -593,8 +608,7 @@ async function showTasks(env: Env, chatId: number, userId: number, todayOnly: bo
       : "";
     return PRIORITIES[task.priority] + " " + escapeHtml(shorten(task.title, 70)) + "\n<blockquote>" + details + closed + "</blockquote>";
   });
-  if (tasks.length > summary.length) summary.push("… " + (tasks.length - summary.length) + (en ? " more tasks" : " تسک دیگر"));
-  await sendMessage(env, chatId, "<b>" + title + " (" + tasks.length + ")</b>\n\n" + summary.join("\n"));
+  await sendSummary(env, chatId, "<b>" + title + " (" + tasks.length + ")</b>", summary, en ? "No tasks to show." : "تسکی برای نمایش نیست.");
   for (const task of tasks) {
     const scheduledToday = task.kind === "one_time" || parseWeekdays(task.weekdays).includes(weekday);
     const closedToday = Boolean(task.doneToday || task.skippedToday);
@@ -627,7 +641,7 @@ async function showDailyPlan(env: Env, chatId: number, userId: number): Promise<
     "EXISTS (SELECT 1 FROM task_completions c WHERE c.task_id = t.id AND c.occurrence_date = ?) AS doneToday, " +
     "EXISTS (SELECT 1 FROM task_skips s WHERE s.task_id = t.id AND s.occurrence_date = ?) AS skippedToday " +
     "FROM tasks t WHERE t.user_id = ? AND (t.kind = 'weekly' OR (t.kind = 'one_time' AND t.completed = 0)) " +
-    "ORDER BY t.deadline IS NULL, t.deadline, t.id LIMIT 100",
+    "ORDER BY t.deadline IS NULL, t.deadline, t.id",
   ).bind(today, today, userId).all<TaskRow>();
   const habits = await env.DB.prepare("SELECT id, title FROM habits WHERE user_id = ? AND active = 1 ORDER BY id").bind(userId).all<{ id: number; title: string }>();
   const habitStates = await Promise.all(habits.results.map(async (habit) => {
@@ -645,26 +659,25 @@ async function showDailyPlan(env: Env, chatId: number, userId: number): Promise<
   const activeWeeklyAndDue = tasks.results.filter((task) => task.kind === "weekly" && activeToday(task) || task.kind === "one_time" && Boolean(task.deadline && task.deadline.slice(0, 10) === today) && activeToday(task));
   const noDeadlineOneTime = tasks.results.filter((task) => task.kind === "one_time" && task.deadline === null && !task.doneToday && !task.skippedToday);
   const openHabits = habitStates.filter((habit) => !habit.done && !habit.skipped);
-  const summaryTasks = tasks.results.slice(0, 10).map((task) => {
+  const summaryTasks = tasks.results.map((task) => {
     const details = task.kind === "weekly"
       ? (en ? "Weekly · " : "هفتگی · ") + formatWeekdays(parseWeekdays(task.weekdays))
       : task.deadline ? (en ? "Deadline · " : "ددلاین · ") + formatDeadline(task.deadline) : (en ? "No deadline" : "بدون ددلاین");
     return PRIORITIES[task.priority] + " " + escapeHtml(shorten(task.title, 55)) + "\n<blockquote>" + details + "</blockquote>";
   });
-  if (tasks.results.length > summaryTasks.length) summaryTasks.push("… " + (tasks.results.length - summaryTasks.length) + (en ? " more tasks" : " تسک دیگر"));
-  const summaryHabits = habitStates.slice(0, 10).map((habit) =>
+  const summaryHabits = habitStates.map((habit) =>
     "🌱 " + escapeHtml(shorten(habit.title, 55)) + "\n<blockquote>" +
     (en ? "Current streak: " : "زنجیره فعلی: ") + habit.streak +
     (habit.done ? (en ? " · Done today" : " · امروز انجام‌شده") : habit.skipped ? (en ? " · Skipped today" : " · امروز انجام‌نشده") : "") +
     "</blockquote>",
   );
-  if (habitStates.length > summaryHabits.length) summaryHabits.push("… " + (habitStates.length - summaryHabits.length) + (en ? " more habits" : " عادت دیگر"));
-  const summary = (en ? "📒 <b>Today's Plan — overview</b>" : "📒 <b>برنامه امروز — خلاصه</b>") +
-    "\n\n📋 <b>" + (en ? "Tasks" : "تسک‌ها") + " (" + tasks.results.length + ")</b>\n" +
-    (summaryTasks.join("\n") || (en ? "No tasks." : "تسکی ثبت نشده است.")) +
-    "\n\n🌱 <b>" + (en ? "Habits" : "عادت‌ها") + " (" + habitStates.length + ")</b>\n" +
-    (summaryHabits.join("\n") || (en ? "No habits." : "عادتی ثبت نشده است."));
-  await sendMessage(env, chatId, summary);
+  const summaryEntries = [
+    "📋 <b>" + (en ? "Tasks" : "تسک‌ها") + " (" + tasks.results.length + ")</b>",
+    ...(summaryTasks.length ? summaryTasks : [en ? "No tasks." : "تسکی ثبت نشده است."]),
+    "🌱 <b>" + (en ? "Habits" : "عادت‌ها") + " (" + habitStates.length + ")</b>",
+    ...(summaryHabits.length ? summaryHabits : [en ? "No habits." : "عادتی ثبت نشده است."]),
+  ];
+  await sendSummary(env, chatId, en ? "📒 <b>Today's Plan — overview</b>" : "📒 <b>برنامه امروز — خلاصه</b>", summaryEntries, "");
 
   await sendMessage(env, chatId, en
     ? "📋 <b>Open weekly and due-today tasks (" + activeWeeklyAndDue.length + ")</b>"
@@ -788,7 +801,7 @@ async function showHabits(env: Env, chatId: number, userId: number): Promise<voi
   const en = (await getLanguage(env.DB, userId)) === "en";
   const today = tehranDate();
   const weekday = tehranWeekday();
-  const rows = await env.DB.prepare("SELECT id, title, weekdays FROM habits WHERE user_id = ? AND active = 1 ORDER BY id DESC LIMIT 30")
+  const rows = await env.DB.prepare("SELECT id, title, weekdays FROM habits WHERE user_id = ? AND active = 1 ORDER BY id DESC")
     .bind(userId).all<{ id: number; title: string; weekdays: string }>();
   const habits = await Promise.all(rows.results.map(async (habit) => {
     const scheduled = parseWeekdays(habit.weekdays).includes(weekday);
@@ -806,7 +819,7 @@ async function showHabits(env: Env, chatId: number, userId: number): Promise<voi
     "🌱 " + escapeHtml(shorten(habit.title, 70)) + "\n<blockquote>" +
     (en ? "Current streak: " : "زنجیره فعلی: ") + habit.streak + "</blockquote>",
   );
-  await sendMessage(env, chatId, "<b>" + heading + " (" + habits.length + ")</b>\n\n" + summary.join("\n"));
+  await sendSummary(env, chatId, "<b>" + heading + " (" + habits.length + ")</b>", summary, en ? "No habits yet." : "هنوز عادتی ثبت نشده است.");
   for (const habit of habits) {
     const todayStatus = habit.done
       ? (en ? "Done today" : "امروز انجام‌شده")
