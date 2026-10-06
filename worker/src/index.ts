@@ -686,7 +686,7 @@ async function showDailyPlan(env: Env, chatId: number, userId: number): Promise<
     "🌱 " + escapeHtml(shorten(habit.title, 55)) + "\n<blockquote>" +
     (habit.done ? (en ? "✅ Done today" : "✅ امروز انجام‌شده")
       : habit.skipped ? (en ? "⏭️ Skipped today" : "⏭️ امروز انجام‌نشده")
-      : (en ? "⬜ Open today" : "⬜ امروز باز")) + "\n" +
+      : (en ? "⬜ Not done today" : "⬜ امروز انجام نشده")) + "\n" +
     (en ? "Current streak: " : "زنجیره فعلی: ") + habit.streak +
     "</blockquote>",
   );
@@ -727,7 +727,7 @@ async function showDailyPlan(env: Env, chatId: number, userId: number): Promise<
   if (!openHabits.length) await sendMessage(env, chatId, en ? "No open habits today." : "عادت بازی برای امروز نداری.");
   for (const habit of openHabits) {
     await sendMessage(env, chatId,
-      "🌱 " + escapeHtml(habit.title) + "\n<blockquote>" + (en ? "⬜ Open today" : "⬜ امروز باز") + "\n" +
+      "🌱 " + escapeHtml(habit.title) + "\n<blockquote>" + (en ? "⬜ Not done today" : "⬜ امروز انجام نشده") + "\n" +
       (en ? "Current streak: " : "زنجیره فعلی: ") + habit.streak + "</blockquote>",
       { inline_keyboard: [[{ text: en ? "✅ Done" : "✅ انجام شد", callback_data: "habit:complete:" + habit.id }, { text: en ? "⏭️ Skip" : "⏭️ انجام نشد", callback_data: "habit:skip:" + habit.id }]] },
     );
@@ -841,7 +841,7 @@ async function showHabits(env: Env, chatId: number, userId: number): Promise<voi
     "🌱 " + escapeHtml(shorten(habit.title, 70)) + "\n<blockquote>" +
     (habit.done ? (en ? "✅ Done today" : "✅ امروز انجام‌شده")
       : habit.skipped ? (en ? "⏭️ Skipped today" : "⏭️ امروز انجام‌نشده")
-      : habit.scheduled ? (en ? "⬜ Open today" : "⬜ امروز باز")
+      : habit.scheduled ? (en ? "⬜ Not done today" : "⬜ امروز انجام نشده")
       : (en ? "▫️ Not scheduled today" : "▫️ امروز زمان‌بندی نشده")) + "\n" +
     (en ? "Current streak: " : "زنجیره فعلی: ") + habit.streak + "\n" +
     (en ? "Best streak: " : "بهترین زنجیره: ") + habit.bestStreak + "</blockquote>",
