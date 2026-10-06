@@ -660,7 +660,8 @@ async function showDailyPlan(env: Env, chatId: number, userId: number): Promise<
     const done = await env.DB.prepare("SELECT 1 FROM habit_completions WHERE habit_id = ? AND occurrence_date = ?").bind(habit.id, today).first();
     const skipped = await env.DB.prepare("SELECT 1 FROM habit_skips WHERE habit_id = ? AND occurrence_date = ?").bind(habit.id, today).first();
     const streak = await habitStreak(env.DB, habit.id, today);
-    return { ...habit, done: Boolean(done), skipped: Boolean(skipped), streak };
+    const bestStreak = await habitBestStreak(env.DB, habit.id);
+    return { ...habit, done: Boolean(done), skipped: Boolean(skipped), streak, bestStreak };
   }));
   const activeToday = (task: TaskRow) => {
     const scheduled = task.kind === "weekly"
@@ -687,8 +688,8 @@ async function showDailyPlan(env: Env, chatId: number, userId: number): Promise<
     (habit.done ? (en ? "✅ Done today" : "✅ امروز انجام‌شده")
       : habit.skipped ? (en ? "⏭️ Skipped today" : "⏭️ امروز انجام‌نشده")
       : (en ? "⬜ Not done today" : "⬜ امروز انجام نشده")) + "\n" +
-    (en ? "Current streak: " : "زنجیره فعلی: ") + habit.streak +
-    "</blockquote>",
+    (en ? "🔥 Current streak: " : "🔥 زنجیره فعلی: ") + habit.streak +
+    (en ? " | Best streak: " : " | بهترین زنجیره: ") + habit.bestStreak + "</blockquote>",
   );
   const summaryEntries = [
     "📋 <b>" + (en ? "Tasks" : "تسک‌ها") + " (" + dailyTasks.length + ")</b>",
@@ -728,7 +729,8 @@ async function showDailyPlan(env: Env, chatId: number, userId: number): Promise<
   for (const habit of openHabits) {
     await sendMessage(env, chatId,
       "🌱 " + escapeHtml(habit.title) + "\n<blockquote>" + (en ? "⬜ Not done today" : "⬜ امروز انجام نشده") + "\n" +
-      (en ? "Current streak: " : "زنجیره فعلی: ") + habit.streak + "</blockquote>",
+      (en ? "🔥 Current streak: " : "🔥 زنجیره فعلی: ") + habit.streak +
+      (en ? " | Best streak: " : " | بهترین زنجیره: ") + habit.bestStreak + "</blockquote>",
       { inline_keyboard: [[{ text: en ? "✅ Done" : "✅ انجام شد", callback_data: "habit:complete:" + habit.id }, { text: en ? "⏭️ Skip" : "⏭️ انجام نشد", callback_data: "habit:skip:" + habit.id }]] },
     );
   }
@@ -843,15 +845,15 @@ async function showHabits(env: Env, chatId: number, userId: number): Promise<voi
       : habit.skipped ? (en ? "⏭️ Skipped today" : "⏭️ امروز انجام‌نشده")
       : habit.scheduled ? (en ? "⬜ Not done today" : "⬜ امروز انجام نشده")
       : (en ? "▫️ Not scheduled today" : "▫️ امروز زمان‌بندی نشده")) + "\n" +
-    (en ? "Current streak: " : "زنجیره فعلی: ") + habit.streak + "\n" +
-    (en ? "Best streak: " : "بهترین زنجیره: ") + habit.bestStreak + "</blockquote>",
+    (en ? "🔥 Current streak: " : "🔥 زنجیره فعلی: ") + habit.streak +
+    (en ? " | Best streak: " : " | بهترین زنجیره: ") + habit.bestStreak + "</blockquote>",
   );
   await sendSummary(env, chatId, "<b>" + heading + " (" + habits.length + ")</b>", summary, en ? "No habits yet." : "هنوز عادتی ثبت نشده است.");
   for (const habit of habits) {
     const todayStatus = habit.done
       ? (en ? "✅ Done today" : "✅ امروز انجام‌شده")
       : habit.skipped ? (en ? "⏭️ Skipped today" : "⏭️ امروز انجام‌نشده")
-      : habit.scheduled ? (en ? "⬜ Open today" : "⬜ امروز باز")
+      : habit.scheduled ? (en ? "⬜ Not done today" : "⬜ امروز انجام نشده")
       : (en ? "▫️ Not scheduled today" : "▫️ امروز زمان‌بندی نشده");
     const actions: InlineButton[][] = [];
     if (habit.scheduled && !habit.done && !habit.skipped) actions.push([
@@ -863,9 +865,9 @@ async function showHabits(env: Env, chatId: number, userId: number): Promise<voi
       { text: en ? "✏️ Rename" : "✏️ تغییر نام", callback_data: "habit:rename:" + habit.id },
     ]);
     await sendMessage(env, chatId,
-      "🌱 " + escapeHtml(habit.title) + "\n<blockquote>" + todayStatus + "\n🔥 " +
-      (en ? "Current streak: " : "زنجیره فعلی: ") + habit.streak + "\n" +
-      (en ? "Best streak: " : "بهترین زنجیره: ") + habit.bestStreak + "</blockquote>",
+      "🌱 " + escapeHtml(habit.title) + "\n<blockquote>" + todayStatus + "\n" +
+      (en ? "🔥 Current streak: " : "🔥 زنجیره فعلی: ") + habit.streak +
+      (en ? " | Best streak: " : " | بهترین زنجیره: ") + habit.bestStreak + "</blockquote>",
       { inline_keyboard: actions },
     );
   }
