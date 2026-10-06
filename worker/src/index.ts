@@ -758,46 +758,47 @@ async function showStats(env: Env, chatId: number, userId: number): Promise<void
   const habitCounts = await env.DB.prepare(
     "SELECT (SELECT COUNT(*) FROM habits WHERE user_id = ? AND active = 1) AS total, (SELECT COUNT(*) FROM habit_completions WHERE user_id = ? AND occurrence_date = ?) AS doneToday, (SELECT COUNT(*) FROM habit_skips WHERE user_id = ? AND occurrence_date = ?) AS skippedToday",
   ).bind(userId, userId, today, userId, today).first<{ total: number; doneToday: number; skippedToday: number }>();
-  const habits = await env.DB.prepare("SELECT id, title FROM habits WHERE user_id = ? AND active = 1 ORDER BY id LIMIT 30").bind(userId).all<{ id: number; title: string }>();
+  const habits = await env.DB.prepare("SELECT id, title FROM habits WHERE user_id = ? AND active = 1 ORDER BY id").bind(userId).all<{ id: number; title: string }>();
   const habitMetrics = await Promise.all(habits.results.map(async (habit) => {
     const streak = await habitStreak(env.DB, habit.id, today);
+    const bestStreak = await habitBestStreak(env.DB, habit.id);
     const week = await env.DB.prepare("SELECT COUNT(*) AS count FROM habit_completions WHERE habit_id = ? AND occurrence_date >= ? AND occurrence_date <= ?").bind(habit.id, tehranDateOffset(-6), today).first<{ count: number }>();
     const month = await env.DB.prepare("SELECT COUNT(*) AS count FROM habit_completions WHERE habit_id = ? AND occurrence_date >= ? AND occurrence_date <= ?").bind(habit.id, tehranDateOffset(-29), today).first<{ count: number }>();
-    return { title: habit.title, streak, week: week?.count ?? 0, month: month?.count ?? 0 };
+    return { title: habit.title, streak, bestStreak, week: week?.count ?? 0, month: month?.count ?? 0 };
   }));
-  const bestHabits = [...habitMetrics].sort((left, right) => right.streak - left.streak).slice(0, 5);
+  const bestHabits = [...habitMetrics].sort((left, right) => right.bestStreak - left.bestStreak);
   const reportName = (value: string) => escapeHtml(value.length > 60 ? value.slice(0, 57) + "…" : value);
-  const bestLines = bestHabits.map((habit) => "🌱 " + reportName(habit.title) + ": 🔥 " + habit.streak);
-  const weekLines = habitMetrics.slice(0, 5).map((habit) => "🌱 " + reportName(habit.title) + ": ▪️ " + habit.week + "/7 🔥 " + habit.streak);
-  const monthLines = habitMetrics.slice(0, 5).map((habit) => "🌱 " + reportName(habit.title) + ": ▪️ " + habit.month + "/30 🔥 " + habit.streak);
-  const separator = "────────────";
+  const bestLines = bestHabits.map((habit) => "🌱 " + reportName(habit.title) + ": 🔥 " + habit.bestStreak);
+  const weekLines = habitMetrics.map((habit) => "🌱 " + reportName(habit.title) + ": ▪️ " + habit.week + "/7 🔥 " + habit.streak);
+  const monthLines = habitMetrics.map((habit) => "🌱 " + reportName(habit.title) + ": ▪️ " + habit.month + "/30 🔥 " + habit.streak);
+  const separator = "─────────────────────────";
   const report = en
     ? "📊 <b>Personal Report</b>\n" + separator +
-      "\n\n📝 <b>Task statistics</b>\n📌 Tasks created: " + totalTasks +
+      "\n📝 <b>Task statistics</b>\n📌 Tasks created: " + totalTasks +
       "\n📌 Tasks completed: " + completedTasks +
       "\n📌 Tasks missed: " + (taskMissed?.count ?? 0) +
       "\n📈 Task completion rate: " + taskRate + "%" +
       "\n📎 Open tasks today: " + (taskOpenToday?.count ?? 0) +
       "\n📎 Tasks completed today: " + (taskDoneToday?.count ?? 0) +
-      "\n" + separator + "\n\n🌱 <b>Habit statistics</b>\n⬜ Total habits: " + (habitCounts?.total ?? 0) +
+      "\n" + separator + "\n🌱 <b>Habit statistics</b>\n⬜ Total habits: " + (habitCounts?.total ?? 0) +
       "\n🟥 Not done today: " + (habitCounts?.skippedToday ?? 0) +
       "\n🟩 Done today: " + (habitCounts?.doneToday ?? 0) +
-      "\n" + separator + "\n\n🌿 <b>Best habit streaks</b>\n" + (bestLines.join("\n") || "No habits yet.") +
-      "\n" + separator + "\n\n📈 <b>Habit completions — last 7 days</b>\n" + (weekLines.join("\n") || "No habit data yet.") +
-      "\n" + separator + "\n\n📉 <b>Habit completions — last 30 days</b>\n" + (monthLines.join("\n") || "No habit data yet.")
+      "\n" + separator + "\n🌿 <b>Best habit streaks</b>\n" + (bestLines.join("\n") || "No habits yet.") +
+      "\n" + separator + "\n📈 <b>Habit completions — last 7 days</b>\n" + (weekLines.join("\n") || "No habit data yet.") +
+      "\n" + separator + "\n📉 <b>Habit completions — last 30 days</b>\n" + (monthLines.join("\n") || "No habit data yet.")
     : "📊 <b>گزارش فردی</b>\n" + separator +
-      "\n\n📝 <b>آمار تسک‌ها</b>\n📌 تعداد تسک‌های ساخته‌شده: " + totalTasks +
+      "\n📝 <b>آمار تسک‌ها</b>\n📌 تعداد تسک‌های ساخته‌شده: " + totalTasks +
       "\n📌 تعداد تسک‌های انجام‌شده: " + completedTasks +
       "\n📌 تعداد تسک‌های انجام‌نشده: " + (taskMissed?.count ?? 0) +
       "\n📈 نرخ انجام تسک: " + taskRate + "%" +
       "\n📎 تسک‌های باز امروز: " + (taskOpenToday?.count ?? 0) +
       "\n📎 تسک‌های انجام‌شده امروز: " + (taskDoneToday?.count ?? 0) +
-      "\n" + separator + "\n\n🌱 <b>آمار عادت‌ها</b>\n⬜ تعداد کل عادت‌ها: " + (habitCounts?.total ?? 0) +
+      "\n" + separator + "\n🌱 <b>آمار عادت‌ها</b>\n⬜ تعداد کل عادت‌ها: " + (habitCounts?.total ?? 0) +
       "\n🟥 انجام‌نشده امروز: " + (habitCounts?.skippedToday ?? 0) +
       "\n🟩 انجام‌شده امروز: " + (habitCounts?.doneToday ?? 0) +
-      "\n" + separator + "\n\n🌿 <b>بهترین زنجیره عادت</b>\n" + (bestLines.join("\n") || "هنوز عادتی ثبت نشده است.") +
-      "\n" + separator + "\n\n📈 <b>نمودار تکمیل عادت‌ها در ۷ روز اخیر</b>\n" + (weekLines.join("\n") || "هنوز داده‌ای ثبت نشده است.") +
-      "\n" + separator + "\n\n📉 <b>نمودار تکمیل عادت‌ها در ۳۰ روز اخیر</b>\n" + (monthLines.join("\n") || "هنوز داده‌ای ثبت نشده است.");
+      "\n" + separator + "\n🌿 <b>بهترین زنجیره عادت</b>\n" + (bestLines.join("\n") || "هنوز عادتی ثبت نشده است.") +
+      "\n" + separator + "\n📈 <b>تکمیل عادت‌ها در ۷ روز اخیر</b>\n" + (weekLines.join("\n") || "هنوز داده‌ای ثبت نشده است.") +
+      "\n" + separator + "\n📉 <b>تکمیل عادت‌ها در ۳۰ روز اخیر</b>\n" + (monthLines.join("\n") || "هنوز داده‌ای ثبت نشده است.");
   await sendMessage(env, chatId, report);
 }
 function weekdayKeyboard(selected: number[], mode: "task" | "habit" | "task_edit" = "task"): ReplyMarkup {
