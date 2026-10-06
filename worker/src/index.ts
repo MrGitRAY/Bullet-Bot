@@ -579,11 +579,22 @@ async function showTasks(env: Env, chatId: number, userId: number, todayOnly: bo
   ).bind(today, today, userId).all<TaskRow>();
   const tasks = result.results.filter((task) => !todayOnly ||
     ((task.kind === "one_time" || parseWeekdays(task.weekdays).includes(weekday)) && !task.doneToday && !task.skippedToday));
+  const title = todayOnly ? (en ? "📋 Today's Open tasks" : "📋 تسک‌های باز امروز") : (en ? "🗂 All tasks" : "🗂 همه تسک‌ها");
   if (!tasks.length) {
-    await sendMessage(env, chatId, todayOnly ? (en ? "You have no open tasks for today. ✨" : "برای امروز تسک بازی نداری. ✨") : (en ? "You have no tasks. ✨" : "تسکی وجود ندارد. ✨"));
+    await sendMessage(env, chatId, title + "\n" + (en ? "No tasks to show. ✨" : "تسکی برای نمایش وجود ندارد. ✨"));
     return;
   }
-  await sendMessage(env, chatId, todayOnly ? (en ? "📋 Today's Open tasks:" : "📋 تسک‌های باز امروز:") : (en ? "🗂 All task:" : "🗂 همه تسک‌ها:"));
+  const summary = tasks.slice(0, 12).map((task) => {
+    const details = task.kind === "one_time"
+      ? (task.deadline ? (en ? "Deadline: " : "ددلاین: ") + formatDeadline(task.deadline) : (en ? "No deadline" : "بدون ددلاین"))
+      : (en ? "Days: " : "روزها: ") + formatWeekdays(parseWeekdays(task.weekdays));
+    const closed = task.doneToday || task.skippedToday
+      ? "\n" + (en ? "Today's status: " : "وضعیت امروز: ") + (task.doneToday ? (en ? "Done" : "انجام شد") : (en ? "Skipped" : "انجام‌نشده"))
+      : "";
+    return PRIORITIES[task.priority] + " " + escapeHtml(shorten(task.title, 70)) + "\n<blockquote>" + details + closed + "</blockquote>";
+  });
+  if (tasks.length > summary.length) summary.push("… " + (tasks.length - summary.length) + (en ? " more tasks" : " تسک دیگر"));
+  await sendMessage(env, chatId, "<b>" + title + " (" + tasks.length + ")</b>\n\n" + summary.join("\n"));
   for (const task of tasks) {
     const scheduledToday = task.kind === "one_time" || parseWeekdays(task.weekdays).includes(weekday);
     const closedToday = Boolean(task.doneToday || task.skippedToday);
@@ -601,14 +612,23 @@ async function showTasks(env: Env, chatId: number, userId: number, todayOnly: bo
     ]);
     if (task.kind === "weekly") actions.push([{ text: en ? "📅 Change days" : "📅 تغییر روزها", callback_data: "task:editdays:" + task.id }]);
     const status = closedToday ? "\n" + (en ? "Today's status: " : "وضعیت امروز: ") + (task.doneToday ? (en ? "Done" : "انجام شد") : (en ? "Skipped" : "انجام‌نشده")) : "";
-    await sendMessage(env, chatId, "<blockquote>" + PRIORITIES[task.priority] + " " + escapeHtml(task.title) + "\n" + schedule + status + "</blockquote>", { inline_keyboard: actions });
+    await sendMessage(env, chatId,
+      PRIORITIES[task.priority] + " " + escapeHtml(task.title) + "\n<blockquote>" + schedule + status + "</blockquote>",
+      { inline_keyboard: actions },
+    );
   }
 }
 async function showDailyPlan(env: Env, chatId: number, userId: number): Promise<void> {
   const en = (await getLanguage(env.DB, userId)) === "en";
   const today = tehranDate();
   const weekday = tehranWeekday();
-  const tasks = await env.DB.prepare("SELECT id, title, priority, kind, deadline, weekdays, completed FROM tasks WHERE user_id = ? AND completed = 0 AND (kind = 'one_time' OR (kind = 'weekly' AND EXISTS (SELECT 1 FROM json_each(tasks.weekdays) WHERE value = ?))) AND NOT EXISTS (SELECT 1 FROM task_completions WHERE task_id = tasks.id AND occurrence_date = ?) AND NOT EXISTS (SELECT 1 FROM task_skips WHERE task_id = tasks.id AND occurrence_date = ?) ORDER BY deadline IS NULL, deadline, id LIMIT 30").bind(userId, weekday, today, today).all<TaskRow>();
+  const tasks = await env.DB.prepare(
+    "SELECT t.id, t.title, t.priority, t.kind, t.deadline, t.weekdays, t.completed, " +
+    "EXISTS (SELECT 1 FROM task_completions c WHERE c.task_id = t.id AND c.occurrence_date = ?) AS doneToday, " +
+    "EXISTS (SELECT 1 FROM task_skips s WHERE s.task_id = t.id AND s.occurrence_date = ?) AS skippedToday " +
+    "FROM tasks t WHERE t.user_id = ? AND (t.kind = 'weekly' OR (t.kind = 'one_time' AND t.completed = 0)) " +
+    "ORDER BY t.deadline IS NULL, t.deadline, t.id LIMIT 100",
+  ).bind(today, today, userId).all<TaskRow>();
   const habits = await env.DB.prepare("SELECT id, title FROM habits WHERE user_id = ? AND active = 1 ORDER BY id").bind(userId).all<{ id: number; title: string }>();
   const habitStates = await Promise.all(habits.results.map(async (habit) => {
     const done = await env.DB.prepare("SELECT 1 FROM habit_completions WHERE habit_id = ? AND occurrence_date = ?").bind(habit.id, today).first();
@@ -616,20 +636,68 @@ async function showDailyPlan(env: Env, chatId: number, userId: number): Promise<
     const streak = await habitStreak(env.DB, habit.id, today);
     return { ...habit, done: Boolean(done), skipped: Boolean(skipped), streak };
   }));
-  const openHabits = habitStates.filter((habit) => !habit.done && !habit.skipped).length;
-  await sendMessage(env, chatId, en ? "📒 <b>Today's Plan</b>" : "📒 <b>برنامه امروز</b>");
-  await sendMessage(env, chatId, en ? "📋 <b>Open tasks (" + tasks.results.length + ")</b>" : "📋 <b>تسک‌های باز (" + tasks.results.length + ")</b>");
-  if (!tasks.results.length) await sendMessage(env, chatId, en ? "No open tasks today. ✨" : "امروز تسک بازی نداری. ✨");
-  for (const task of tasks.results) {
-    const deadline = task.deadline ? "\n" + (en ? "Deadline: " : "ددلاین: ") + formatDeadline(task.deadline) : "";
-    await sendMessage(env, chatId, "<blockquote>" + PRIORITIES[task.priority] + " " + escapeHtml(task.title) + deadline + "</blockquote>", { inline_keyboard: [[{ text: en ? "✅ Complete" : "✅ انجام شد", callback_data: "task:complete:" + task.id }, { text: en ? "⏭️ Skip" : "⏭️ انجام نشد", callback_data: "task:skip:" + task.id }]] });
+  const activeToday = (task: TaskRow) => {
+    const scheduled = task.kind === "weekly"
+      ? parseWeekdays(task.weekdays).includes(weekday)
+      : Boolean(task.deadline && task.deadline.slice(0, 10) === today);
+    return scheduled && !task.doneToday && !task.skippedToday;
+  };
+  const activeWeeklyAndDue = tasks.results.filter((task) => task.kind === "weekly" && activeToday(task) || task.kind === "one_time" && Boolean(task.deadline && task.deadline.slice(0, 10) === today) && activeToday(task));
+  const noDeadlineOneTime = tasks.results.filter((task) => task.kind === "one_time" && task.deadline === null && !task.doneToday && !task.skippedToday);
+  const openHabits = habitStates.filter((habit) => !habit.done && !habit.skipped);
+  const summaryTasks = tasks.results.slice(0, 10).map((task) => {
+    const details = task.kind === "weekly"
+      ? (en ? "Weekly · " : "هفتگی · ") + formatWeekdays(parseWeekdays(task.weekdays))
+      : task.deadline ? (en ? "Deadline · " : "ددلاین · ") + formatDeadline(task.deadline) : (en ? "No deadline" : "بدون ددلاین");
+    return PRIORITIES[task.priority] + " " + escapeHtml(shorten(task.title, 55)) + "\n<blockquote>" + details + "</blockquote>";
+  });
+  if (tasks.results.length > summaryTasks.length) summaryTasks.push("… " + (tasks.results.length - summaryTasks.length) + (en ? " more tasks" : " تسک دیگر"));
+  const summaryHabits = habitStates.slice(0, 10).map((habit) =>
+    "🌱 " + escapeHtml(shorten(habit.title, 55)) + "\n<blockquote>" +
+    (en ? "Current streak: " : "زنجیره فعلی: ") + habit.streak +
+    (habit.done ? (en ? " · Done today" : " · امروز انجام‌شده") : habit.skipped ? (en ? " · Skipped today" : " · امروز انجام‌نشده") : "") +
+    "</blockquote>",
+  );
+  if (habitStates.length > summaryHabits.length) summaryHabits.push("… " + (habitStates.length - summaryHabits.length) + (en ? " more habits" : " عادت دیگر"));
+  const summary = (en ? "📒 <b>Today's Plan — overview</b>" : "📒 <b>برنامه امروز — خلاصه</b>") +
+    "\n\n📋 <b>" + (en ? "Tasks" : "تسک‌ها") + " (" + tasks.results.length + ")</b>\n" +
+    (summaryTasks.join("\n") || (en ? "No tasks." : "تسکی ثبت نشده است.")) +
+    "\n\n🌱 <b>" + (en ? "Habits" : "عادت‌ها") + " (" + habitStates.length + ")</b>\n" +
+    (summaryHabits.join("\n") || (en ? "No habits." : "عادتی ثبت نشده است."));
+  await sendMessage(env, chatId, summary);
+
+  await sendMessage(env, chatId, en
+    ? "📋 <b>Open weekly and due-today tasks (" + activeWeeklyAndDue.length + ")</b>"
+    : "📋 <b>تسک‌های هفتگی و ددلاین‌دارِ امروز (" + activeWeeklyAndDue.length + ")</b>");
+  if (!activeWeeklyAndDue.length) await sendMessage(env, chatId, en ? "Nothing to check off here." : "موردی برای تیک‌زدن نیست.");
+  for (const task of activeWeeklyAndDue) {
+    const details = task.kind === "weekly"
+      ? (en ? "Weekly · " : "هفتگی · ") + formatWeekdays(parseWeekdays(task.weekdays))
+      : (en ? "Deadline · " : "ددلاین · ") + formatDeadline(task.deadline!);
+    await sendMessage(env, chatId,
+      PRIORITIES[task.priority] + " " + escapeHtml(task.title) + "\n<blockquote>" + details + "</blockquote>",
+      { inline_keyboard: [[{ text: en ? "✅ Complete" : "✅ انجام شد", callback_data: "task:complete:" + task.id }, { text: en ? "⏭️ Skip" : "⏭️ انجام نشد", callback_data: "task:skip:" + task.id }]] },
+    );
   }
-  await sendMessage(env, chatId, en ? "🌱 <b>Habits (" + openHabits + " open)</b>" : "🌱 <b>عادت‌ها (" + openHabits + " باز)</b>");
-  if (!habitStates.length) await sendMessage(env, chatId, en ? "No habits yet." : "هنوز عادتی ثبت نشده است.");
-  for (const habit of habitStates) {
-    const status = habit.done ? (en ? "✅ Done" : "✅ انجام‌شده") : habit.skipped ? (en ? "⏭️ Skipped" : "⏭️ انجام‌نشده") : (en ? "⬜ Open" : "⬜ باز");
-    const actions = !habit.done && !habit.skipped ? { inline_keyboard: [[{ text: en ? "✅ Done" : "✅ انجام شد", callback_data: "habit:complete:" + habit.id }, { text: en ? "⏭️ Skip" : "⏭️ انجام نشد", callback_data: "habit:skip:" + habit.id }]] } : undefined;
-    await sendMessage(env, chatId, "<blockquote>🌱 " + escapeHtml(habit.title) + " — " + status + "\n🔥 " + (en ? "Current streak: " : "زنجیره فعلی: ") + habit.streak + "</blockquote>", actions);
+
+  await sendMessage(env, chatId, en
+    ? "📝 <b>One-time tasks without a deadline (" + noDeadlineOneTime.length + ")</b>"
+    : "📝 <b>تسک‌های یک‌باره بدون ددلاین (" + noDeadlineOneTime.length + ")</b>");
+  if (!noDeadlineOneTime.length) await sendMessage(env, chatId, en ? "No open tasks without a deadline." : "تسک بازِ بدون ددلاین نداری.");
+  for (const task of noDeadlineOneTime) {
+    await sendMessage(env, chatId,
+      PRIORITIES[task.priority] + " " + escapeHtml(task.title) + "\n<blockquote>" + (en ? "One-time · No deadline" : "یک‌باره · بدون ددلاین") + "</blockquote>",
+      { inline_keyboard: [[{ text: en ? "✅ Complete" : "✅ انجام شد", callback_data: "task:complete:" + task.id }, { text: en ? "⏭️ Skip" : "⏭️ انجام نشد", callback_data: "task:skip:" + task.id }]] },
+    );
+  }
+
+  await sendMessage(env, chatId, en ? "🌱 <b>Habits (" + openHabits.length + " open)</b>" : "🌱 <b>عادت‌ها (" + openHabits.length + " باز)</b>");
+  if (!openHabits.length) await sendMessage(env, chatId, en ? "No open habits today." : "عادت بازی برای امروز نداری.");
+  for (const habit of openHabits) {
+    await sendMessage(env, chatId,
+      "🌱 " + escapeHtml(habit.title) + "\n<blockquote>" + (en ? "Current streak: " : "زنجیره فعلی: ") + habit.streak + "</blockquote>",
+      { inline_keyboard: [[{ text: en ? "✅ Done" : "✅ انجام شد", callback_data: "habit:complete:" + habit.id }, { text: en ? "⏭️ Skip" : "⏭️ انجام نشد", callback_data: "habit:skip:" + habit.id }]] },
+    );
   }
 }
 async function startHabitCreation(env: Env, chatId: number, userId: number): Promise<void> {
@@ -718,27 +786,52 @@ function weekdayKeyboard(selected: number[], mode: "task" | "habit" | "task_edit
 }
 async function showHabits(env: Env, chatId: number, userId: number): Promise<void> {
   const en = (await getLanguage(env.DB, userId)) === "en";
-  const habits = await env.DB.prepare("SELECT id, title, weekdays FROM habits WHERE user_id = ? AND active = 1 ORDER BY id DESC LIMIT 30")
+  const today = tehranDate();
+  const weekday = tehranWeekday();
+  const rows = await env.DB.prepare("SELECT id, title, weekdays FROM habits WHERE user_id = ? AND active = 1 ORDER BY id DESC LIMIT 30")
     .bind(userId).all<{ id: number; title: string; weekdays: string }>();
-  if (!habits.results.length) {
-    await sendMessage(env, chatId, en ? "You have no habits yet. Choose New habit to create one." : "هنوز عادتی ثبت نکرده‌ای. از «➕ عادت جدید» شروع کن.");
+  const habits = await Promise.all(rows.results.map(async (habit) => {
+    const scheduled = parseWeekdays(habit.weekdays).includes(weekday);
+    const done = scheduled ? await env.DB.prepare("SELECT 1 FROM habit_completions WHERE habit_id = ? AND occurrence_date = ?").bind(habit.id, today).first() : null;
+    const skipped = scheduled ? await env.DB.prepare("SELECT 1 FROM habit_skips WHERE habit_id = ? AND occurrence_date = ?").bind(habit.id, today).first() : null;
+    const streak = await habitStreak(env.DB, habit.id, today);
+    return { ...habit, scheduled, done: Boolean(done), skipped: Boolean(skipped), streak };
+  }));
+  const heading = en ? "🪴 All habits" : "🪴 همه عادت‌ها";
+  if (!habits.length) {
+    await sendMessage(env, chatId, "<b>" + heading + " (0)</b>\n" + (en ? "No habits yet. Choose New habit to create one." : "هنوز عادتی ثبت نکرده‌ای. از «➕ عادت جدید» شروع کن."));
     return;
   }
-  const weekday = tehranWeekday();
-  await sendMessage(env, chatId, en ? "🪴 Your habits:" : "🪴 عادت‌های امروز:");
-  for (const habit of habits.results) {
-    const days = parseWeekdays(habit.weekdays);
-    const scheduled = days.includes(weekday);
-    const done = scheduled ? await env.DB.prepare("SELECT 1 FROM habit_completions WHERE habit_id = ? AND occurrence_date = ?")
-      .bind(habit.id, tehranDate()).first() : null;
-    const streak = await habitStreak(env.DB, habit.id, tehranDate());
+  const summary = habits.map((habit) =>
+    "🌱 " + escapeHtml(shorten(habit.title, 70)) + "\n<blockquote>" +
+    (en ? "Current streak: " : "زنجیره فعلی: ") + habit.streak + "</blockquote>",
+  );
+  await sendMessage(env, chatId, "<b>" + heading + " (" + habits.length + ")</b>\n\n" + summary.join("\n"));
+  for (const habit of habits) {
+    const todayStatus = habit.done
+      ? (en ? "Done today" : "امروز انجام‌شده")
+      : habit.skipped ? (en ? "Skipped today" : "امروز انجام‌نشده")
+      : habit.scheduled ? (en ? "Open today" : "امروز باز")
+      : (en ? "Not scheduled today" : "امروز زمان‌بندی نشده");
     const actions: InlineButton[][] = [];
-    if (scheduled && !done) actions.push([{ text: en ? "✅ Done" : "✅ انجام شد", callback_data: `habit:complete:${habit.id}` }, { text: en ? "⏭️ Skipped" : "⏭️ انجام نشد", callback_data: `habit:skip:${habit.id}` }]);
-    actions.push([{ text: en ? "🗑 Delete" : "🗑 حذف", callback_data: `habit:delete:${habit.id}` }, { text: en ? "✏️ Rename" : "✏️ تغییر نام", callback_data: `habit:rename:${habit.id}` }]);
-    await sendMessage(env, chatId, `${done ? "✅" : scheduled ? "⬜" : "▫️"} ${escapeHtml(habit.title)}\n🔥 ${en ? "Current streak" : "زنجیره فعلی"}: ${streak}`, { inline_keyboard: actions });
+    if (habit.scheduled && !habit.done && !habit.skipped) actions.push([
+      { text: en ? "✅ Done" : "✅ انجام شد", callback_data: "habit:complete:" + habit.id },
+      { text: en ? "⏭️ Skipped" : "⏭️ انجام نشد", callback_data: "habit:skip:" + habit.id },
+    ]);
+    actions.push([
+      { text: en ? "🗑 Delete" : "🗑 حذف", callback_data: "habit:delete:" + habit.id },
+      { text: en ? "✏️ Rename" : "✏️ تغییر نام", callback_data: "habit:rename:" + habit.id },
+    ]);
+    await sendMessage(env, chatId,
+      "🌱 " + escapeHtml(habit.title) + "\n<blockquote>" + todayStatus + "\n🔥 " +
+      (en ? "Current streak: " : "زنجیره فعلی: ") + habit.streak + "</blockquote>",
+      { inline_keyboard: actions },
+    );
   }
 }
-
+function shorten(value: string, maximum: number): string {
+  return value.length > maximum ? value.slice(0, maximum - 1) + "…" : value;
+}
 function deadlineKeyboard(en: boolean): ReplyMarkup {
   const rows: InlineButton[][] = [
     [{ text: en ? "Until tonight (23:59 today)" : "تا آخر امشب (امروز ساعت ۲۳:۵۹)", callback_data: "new:quick:tonight" }],
@@ -817,22 +910,28 @@ async function showWeeklyPlan(env: Env, chatId: number, userId: number): Promise
     const label = WEEKDAYS[index][1];
     const dayTasks = tasks.results.filter((task) => task.kind === "weekly" && parseWeekdays(task.weekdays).includes(day));
     const dayHabits = habits.results.filter((habit) => parseWeekdays(habit.weekdays).includes(day));
-    const taskLines = dayTasks.map((task) => PRIORITIES[task.priority] + " " + escapeHtml(task.title.length > 80 ? task.title.slice(0, 77) + "…" : task.title));
-    const habitLines = dayHabits.map((habit) => "🌱 " + escapeHtml(habit.title.length > 80 ? habit.title.slice(0, 77) + "…" : habit.title));
+    const taskLines = dayTasks.map((task) =>
+      PRIORITIES[task.priority] + " " + escapeHtml(shorten(task.title, 80)) +
+      "\n<blockquote>" + (en ? "Weekly task" : "تسک هفتگی") + "</blockquote>",
+    );
+    const habitLines = dayHabits.map((habit) =>
+      "🌱 " + escapeHtml(shorten(habit.title, 80)) + "\n<blockquote>" + (en ? "Habit" : "عادت") + "</blockquote>",
+    );
     const allLines = [...taskLines, ...habitLines];
-    const visibleLines = allLines.slice(0, 25);
+    const visibleLines = allLines.slice(0, 20);
     if (allLines.length > visibleLines.length) visibleLines.push("… " + (allLines.length - visibleLines.length) + (en ? " more" : " مورد دیگر"));
     const heading = (index === 0 ? "🗓️" : "📆") + " <b>" + (en ? englishDays[index] : label) + "</b> · " +
       dayTasks.length + " " + (en ? "tasks" : "تسک") + " · " + dayHabits.length + " " + (en ? "habits" : "عادت");
-    await sendMessage(env, chatId, heading + "\n<blockquote>" + (visibleLines.join("\n") || (en ? "No items" : "موردی ثبت نشده")) + "</blockquote>");
+    await sendMessage(env, chatId, heading + "\n\n" + (visibleLines.join("\n") || (en ? "No items." : "موردی ثبت نشده است.")));
   }
   const oneTime = tasks.results.filter((task) => task.kind === "one_time");
   if (oneTime.length) {
-    const rows = oneTime.slice(0, 25).map((task) =>
-      PRIORITIES[task.priority] + " " + escapeHtml(task.title.length > 80 ? task.title.slice(0, 77) + "…" : task.title) +
-      (task.deadline ? " — " + formatDeadline(task.deadline) : " — " + (en ? "No deadline" : "بدون ددلاین")));
+    const rows = oneTime.slice(0, 20).map((task) =>
+      PRIORITIES[task.priority] + " " + escapeHtml(shorten(task.title, 80)) +
+      "\n<blockquote>" + (task.deadline ? (en ? "Deadline: " : "ددلاین: ") + formatDeadline(task.deadline) : (en ? "No deadline" : "بدون ددلاین")) + "</blockquote>",
+    );
     if (oneTime.length > rows.length) rows.push("… " + (oneTime.length - rows.length) + (en ? " more" : " مورد دیگر"));
-    await sendMessage(env, chatId, "<b>📝 " + (en ? "One-time tasks" : "تسک‌های یک‌باره") + "</b>\n<blockquote>" + rows.join("\n") + "</blockquote>");
+    await sendMessage(env, chatId, "<b>📝 " + (en ? "One-time tasks" : "تسک‌های یک‌باره") + "</b>\n\n" + rows.join("\n"));
   }
 }
 function formatDeadline(value: string): string {
